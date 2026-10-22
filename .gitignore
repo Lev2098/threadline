@@ -19,8 +19,10 @@ frontend/dist/
 
 # Env & runtime
 .env
-media/
-staticfiles/
+/backend/media/
+/media/
+/backend/staticfiles/
+*.sqlite3
 loadtest/reports/
 
 # Task brief (not part of the repo)
