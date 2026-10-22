@@ -34,6 +34,11 @@ _SAFE_HREF_RE = re.compile(r"^(?:https?://|mailto:)[^\s\"'<>`]+$", re.IGNORECASE
 
 # Anything that looks like a tag: <name ...>, </name>, <name/>. As in HTML, "< b" is text.
 _TAG_RE = re.compile(r"<(/?)([A-Za-z][A-Za-z0-9]*)\b([^<>]*?)(/?)\s*>")
+_XML_ILLEGAL_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffe\uffff]")
+# Zero-width and similar characters: a text made only of these is "empty".
+_INVISIBLE_RE = re.compile("[\u200b-\u200f\u2060\ufeff\u00ad]")
+# Only well-formed references ("&amp;", "&#169;"); "&copy=2" in a URL stays literal text.
+_ENTITY_RE = re.compile(r"&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
 _ATTR_RE = re.compile(r"""([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 
 
@@ -46,8 +51,10 @@ class CommentText:
 
     @classmethod
     def parse(cls, source: str) -> CommentText:
-        source = (source or "").replace("\r\n", "\n").strip()
-        if not source:
+        source = (source or "").replace("\r\n", "\n").replace("\r", "\n")
+        # Characters that are illegal in XML would make the output invalid XHTML.
+        source = _XML_ILLEGAL_RE.sub("", source).strip()
+        if not _INVISIBLE_RE.sub("", source).strip():
             raise MarkupError("Text is required.", field="text")
         if len(source) > TEXT_MAX:
             raise MarkupError(f"Text must be at most {TEXT_MAX} characters.", field="text")
@@ -111,7 +118,7 @@ def _open_tag(name: str, attrs_src: str) -> str:
             raise MarkupError(f"Attribute '{attr}' is not allowed in <{name}>.", field="text")
         if attr in attrs:
             raise MarkupError(f"Duplicate attribute '{attr}' in <{name}>.", field="text")
-        attrs[attr] = html.unescape(value).strip()
+        attrs[attr] = _unescape(value).strip()
 
     if name == "a":
         href = attrs.get("href", "")
@@ -124,6 +131,12 @@ def _open_tag(name: str, attrs_src: str) -> str:
     return f"<{name}{rendered}>"
 
 
+def _unescape(text: str) -> str:
+    """Decode only complete character references, never legacy ``&copy`` without ';'."""
+    decoded = _ENTITY_RE.sub(lambda m: html.unescape(m.group(0)), text)
+    return _XML_ILLEGAL_RE.sub("", decoded)
+
+
 def _escape_text(text: str) -> str:
     # html.escape turns a stray "<" or "&" into entities, keeping output valid XHTML.
-    return html.escape(html.unescape(text), quote=False)
+    return html.escape(_unescape(text), quote=False)
