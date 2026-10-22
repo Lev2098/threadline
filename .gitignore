@@ -27,3 +27,4 @@ loadtest/reports/
 
 # Task brief (not part of the repo)
 /*.pdf
+*.egg-info/
