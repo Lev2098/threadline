@@ -39,6 +39,8 @@
 - **Повнотекстовий пошук** на Elasticsearch.
 - **Інтерфейс UA/RU**, світла й темна тема, адаптивна верстка до 360 px, доступність з клавіатури, підтримка `prefers-reduced-motion`.
 - **API:** REST з OpenAPI/Swagger (`/api/docs`), GraphQL (`/graphql`), WebSocket (`/ws/comments/`).
+- **SEO.** Кожна гілка має власну адресу `/t/<id>` і віддається сервером як готовий HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Є `robots.txt`, `sitemap.xml` на сотні тисяч гілок і справжні 404. Деталі — [docs/uk/seo.md](docs/uk/seo.md).
+- **Анімації й дрібні радощі** (усі вимикаються при `prefers-reduced-motion`): заголовок з'являється по словах, лічильник «докручується», гілки «проростають», тема змінюється кругом від кнопки, при публікації розлітається конфеті, по таблиці йде spotlight за курсором. Гарячі клавіші: `/` пошук, `n` нове обговорення, `t` тема, `?` довідка.
 
 ## Як виконано вимоги ТЗ
 
@@ -148,6 +150,7 @@ cd ../frontend && npm ci && npm run typecheck
 | Розгортання крок за кроком | [docs/uk/deployment.md](docs/uk/deployment.md) | [docs/ru/deployment.md](docs/ru/deployment.md) |
 | Масштабування та навантажувальний тест | [docs/uk/scaling.md](docs/uk/scaling.md) | [docs/ru/scaling.md](docs/ru/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/uk/api.md](docs/uk/api.md) | [docs/ru/api.md](docs/ru/api.md) |
+| SEO та індексація | [docs/uk/seo.md](docs/uk/seo.md) | [docs/ru/seo.md](docs/ru/seo.md) |
 | QA: як перевірявся продукт | [docs/uk/qa.md](docs/uk/qa.md) | [docs/ru/qa.md](docs/ru/qa.md) |
 | Сценарій демо-відео | [docs/uk/video.md](docs/uk/video.md) | [docs/ru/video.md](docs/ru/video.md) |
 | Схема БД | [docs/db/schema.mysql.sql](docs/db/schema.mysql.sql) (Workbench) · [docs/db/schema.postgresql.sql](docs/db/schema.postgresql.sql) (фактична) | |
