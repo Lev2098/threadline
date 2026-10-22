@@ -18,46 +18,9 @@ from django.db import connection, transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from comments.adapters.inbound.cli import demo_text
 from comments.adapters.outbound.persistence.models import CommentRecord
 from comments.domain.comment import child_path
-
-NAMES = ["Anonym", "Rum8", "Olena", "Taras", "Iryna", "Max", "Sofia", "Andrii", "Kate", "Dmytro", "Nadia", "Bohdan"]
-WORDS = [
-    "semantic",
-    "analysis",
-    "provides",
-    "broad",
-    "opportunities",
-    "competitors",
-    "research",
-    "continental",
-    "type",
-    "political",
-    "culture",
-    "ideas",
-    "resource",
-    "saving",
-    "technologies",
-    "material",
-    "base",
-    "interactive",
-    "prototypes",
-    "conclusions",
-    "opponents",
-    "architecture",
-    "hexagon",
-    "ports",
-    "adapters",
-    "queue",
-    "cache",
-    "event",
-    "stream",
-    "index",
-    "replica",
-    "shard",
-    "latency",
-]
-TAGS = [("<i>", "</i>"), ("<strong>", "</strong>"), ("<code>", "</code>")]
 
 
 class Command(BaseCommand):
@@ -68,14 +31,19 @@ class Command(BaseCommand):
         parser.add_argument("--root-ratio", type=float, default=0.3, help="Share of root comments (0..1).")
         parser.add_argument("--batch", type=int, default=5_000)
         parser.add_argument("--seed", type=int, default=42)
+        parser.add_argument("--span-days", type=float, default=365, help="Spread timestamps over this many days.")
+        parser.add_argument(
+            "--until-days-ago", type=float, default=0, help="Newest generated comment is this many days old."
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         rng = random.Random(opts["seed"])  # noqa: S311 - test data, not crypto
         total, batch = opts["count"], opts["batch"]
         root_ratio = opts["root_ratio"]
         next_id = self._reserve_ids(total)
-        start_time = timezone.now() - timedelta(days=365)
-        step = timedelta(days=365) / max(total, 1)
+        end_time = timezone.now() - timedelta(days=opts["until_days_ago"])
+        start_time = end_time - timedelta(days=opts["span_days"])
+        step = (end_time - start_time) / max(total, 1)
         created = 0
         started = time.monotonic()
 
@@ -116,18 +84,14 @@ class Command(BaseCommand):
 
     @staticmethod
     def _row(rng: random.Random, pk: int, parent_id: int | None, ts: Any) -> CommentRecord:
-        name = f"{rng.choice(NAMES)}{rng.randint(1, 999)}"
-        words = rng.sample(WORDS, k=rng.randint(6, 18))
-        if rng.random() < 0.3:
-            open_tag, close_tag = rng.choice(TAGS)
-            idx = rng.randrange(len(words))
-            words[idx] = f"{open_tag}{words[idx]}{close_tag}"
-        text = " ".join(words).capitalize() + "."
+        name = demo_text.username(rng)
+        # Generated phrases contain only allowed, balanced tags, so source == html.
+        text = demo_text.root_text(rng) if parent_id is None else demo_text.reply_text(rng)
         return CommentRecord(
             id=pk,
             parent_id=parent_id,
             username=name,
-            email=f"{name.lower()}@example.com",
+            email=demo_text.email(rng, name),
             text_source=text,
             text_html=text,
             client_id="seed",
