@@ -22,6 +22,7 @@ urlpatterns = [
     ),
     path("admin/", admin.site.urls),
     path("readyz", readyz),
+    path("", include("comments.adapters.inbound.web.urls")),
 ]
 
 if settings.DEBUG:
