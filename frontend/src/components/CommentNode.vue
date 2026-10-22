@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import type { Comment } from '@/api/types'
 import { formatDate, t } from '@/composables/i18n'
 import { plainText, safeHtml } from '@/composables/markup'
-import { avatarStyle, compact, initials, openComposer } from '@/composables/ui'
+import { threadUrl } from '@/composables/router'
+import { avatarStyle, compact, initials, openComposer, toast } from '@/composables/ui'
 import AttachmentThumb from './AttachmentThumb.vue'
 
 export interface TreeNode {
@@ -23,16 +24,36 @@ const MAX_INDENT_WIDE = 8
 const MAX_INDENT_COMPACT = 3
 const flatChildren = computed(() => level.value + 1 > (compact.value ? MAX_INDENT_COMPACT : MAX_INDENT_WIDE))
 const c = computed(() => props.node.comment)
+const permalink = computed(() => `${threadUrl(c.value.root_id)}#c${c.value.id}`)
+
+async function copyPermalink(event: MouseEvent): Promise<void> {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return // open in new tab as usual
+  event.preventDefault()
+  const url = new URL(permalink.value, location.origin).href
+  try {
+    await navigator.clipboard.writeText(url)
+    toast(t.value.linkCopied)
+  } catch {
+    location.href = url
+  }
+}
+
 const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.parent.html) : ''))
 </script>
 
 <template>
-  <article class="node" :class="{ fresh: node.fresh, nested: level > 0 && !flat, flat }" :style="{ '--level': level }">
+  <article
+    :id="`c${c.id}`"
+    class="node"
+    :class="{ fresh: node.fresh, nested: level > 0 && !flat, flat }"
+    :style="{ '--level': level }"
+  >
     <div class="card">
       <header class="meta">
         <span class="avatar" :style="avatarStyle(c.username)" aria-hidden="true">{{ initials(c.username) }}</span>
         <strong class="author">{{ c.username }}</strong>
         <time :datetime="c.created_at">{{ formatDate(c.created_at) }}</time>
+        <a class="perma" :href="permalink" :title="t.permalink" :aria-label="t.permalink" @click="copyPermalink">#</a>
         <a v-if="c.home_page" class="home" :href="c.home_page" target="_blank" rel="nofollow noopener noreferrer" :title="t.homepage">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5M6.5 10v9h11v-9" /></svg>
           <span class="sr-only">{{ t.homepage }}</span>
@@ -133,6 +154,29 @@ time {
 .home:hover {
   color: var(--signal);
 }
+.perma {
+  color: var(--muted);
+  font-weight: 700;
+  text-decoration: none;
+  padding: 0 0.2rem;
+  border-radius: 6px;
+  transition: color 0.2s, background-color 0.2s;
+}
+.perma:hover {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+/* target of a permalink: one soft flash */
+.node.flash > .card {
+  animation: flash 2.2s ease-out;
+}
+@keyframes flash {
+  0%,
+  30% {
+    border-color: var(--signal);
+    box-shadow: 0 0 0 6px var(--signal-soft);
+  }
+}
 .reply {
   margin-left: auto;
   display: inline-flex;
@@ -148,6 +192,19 @@ time {
 }
 .reply:hover {
   background: var(--signal-soft);
+}
+.reply svg {
+  transition: transform 0.25s var(--ease-out);
+}
+.reply:hover svg {
+  transform: translateX(-2px) rotate(-8deg);
+}
+.avatar {
+  transition: transform 0.3s var(--ease-out), filter 0.3s;
+}
+.card:hover .avatar {
+  transform: rotate(-6deg) scale(1.06);
+  filter: saturate(1.25);
 }
 .quote {
   margin: 0 0 0.5rem;

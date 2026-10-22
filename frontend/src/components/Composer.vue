@@ -5,6 +5,7 @@ import { ApiError, type Captcha } from '@/api/types'
 import { t } from '@/composables/i18n'
 import { announceLocally } from '@/composables/live'
 import { checkMarkup, plainText, safeHtml, type MarkupIssue } from '@/composables/markup'
+import { burst } from '@/composables/fx'
 import { composer, enterModal, isMac, toast } from '@/composables/ui'
 
 type Field = 'username' | 'email' | 'home_page' | 'text' | 'attachment' | 'captcha'
@@ -226,6 +227,8 @@ async function submit(): Promise<void> {
   submitting.value = true
   try {
     const comment = await api.post(body)
+    const button = panel.value?.querySelector<HTMLElement>('button[type="submit"]')?.getBoundingClientRect()
+    if (button) burst(button.left + button.width / 2, button.top + button.height / 2)
     saveProfile()
     announceLocally(comment)
     toast(t.value.published)

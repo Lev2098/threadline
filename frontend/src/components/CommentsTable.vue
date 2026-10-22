@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import type { Comment, Ordering, SortField } from '@/api/types'
 import { formatDate, t } from '@/composables/i18n'
 import { plainText } from '@/composables/markup'
+import { onLinkClick, threadUrl } from '@/composables/router'
+import { spotlight } from '@/composables/fx'
 import { avatarStyle, initials } from '@/composables/ui'
 import ThreadPanel from './ThreadPanel.vue'
 
@@ -39,7 +41,7 @@ const columns = computed(() => [
 </script>
 
 <template>
-  <div class="table-wrap">
+  <div class="table-wrap" @pointermove="spotlight">
     <table class="roots">
       <thead>
         <tr>
@@ -63,9 +65,10 @@ const columns = computed(() => [
         </tr>
       </thead>
       <tbody>
-        <template v-for="c in items" :key="c.id">
+        <template v-for="(c, i) in items" :key="c.id">
           <tr
             class="row"
+            :style="{ '--i': i }"
             :class="{ open: expanded.has(c.id), fresh: fresh.has(c.id) }"
             tabindex="0"
             :aria-expanded="expanded.has(c.id)"
@@ -83,6 +86,16 @@ const columns = computed(() => [
             <td class="c-email">{{ c.email }}</td>
             <td class="c-date"><time :datetime="c.created_at">{{ formatDate(c.created_at) }}</time></td>
             <td class="c-replies">
+              <a
+                class="open"
+                :href="threadUrl(c.id)"
+                :title="t.openThread"
+                :aria-label="t.openThread"
+                @click.stop="onLinkClick($event, threadUrl(c.id))"
+                @keydown.enter.stop
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" /></svg>
+              </a>
               <span class="count" :class="{ zero: !c.replies_count }">{{ t.replies(c.replies_count) }}</span>
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
               <span class="sr-only">{{ expanded.has(c.id) ? t.hideThread : t.showThread }}</span>
@@ -99,8 +112,15 @@ const columns = computed(() => [
 
 <style scoped>
 .table-wrap {
+  position: relative;
+  /* pointer-following highlight, painted under the rows */
+  background-image: radial-gradient(
+    420px circle at var(--mx, -999px) var(--my, -999px),
+    color-mix(in srgb, var(--signal) 9%, transparent),
+    transparent 70%
+  );
   border-radius: var(--radius-l);
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-lift);
   overflow: hidden;
@@ -190,6 +210,23 @@ td {
 .row {
   cursor: pointer;
   transition: background-color 0.2s;
+  animation: row-enter 0.45s var(--ease-out) both;
+  animation-delay: calc(min(var(--i), 12) * 22ms);
+}
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.thread-row td > * {
+  animation: thread-open 0.4s var(--ease-out) both;
+}
+@keyframes thread-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 .row:hover,
 .row.open {
@@ -246,6 +283,40 @@ time {
   color: var(--muted);
   font-weight: 500;
 }
+.open {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 999px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+.open svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.row:hover .open,
+.row:focus-within .open,
+.open:focus-visible {
+  opacity: 1;
+}
+.open:hover {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+@media (hover: none) {
+  .open {
+    opacity: 1;
+  }
+}
 .chev {
   width: 18px;
   height: 18px;
@@ -257,7 +328,41 @@ time {
   stroke-linecap: round;
   transition: transform 0.3s var(--ease-out);
 }
-.open .chev {
+.open .open {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 999px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+.open svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.row:hover .open,
+.row:focus-within .open,
+.open:focus-visible {
+  opacity: 1;
+}
+.open:hover {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+@media (hover: none) {
+  .open {
+    opacity: 1;
+  }
+}
+.chev {
   transform: rotate(180deg);
   stroke: var(--signal);
 }

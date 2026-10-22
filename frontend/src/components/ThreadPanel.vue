@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client'
-import type { Comment } from '@/api/types'
+import type { Comment, ThreadSlice } from '@/api/types'
 import { t } from '@/composables/i18n'
 import { onCommentPosted } from '@/composables/live'
 import CommentNode, { type TreeNode } from './CommentNode.vue'
 
-const props = defineProps<{ root: Comment }>()
+const props = defineProps<{ root: Comment; initial?: ThreadSlice | null }>()
+const emit = defineEmits<{ loaded: [] }>()
 
 const tree = reactive<TreeNode>({ comment: props.root, children: [] })
 const index = new Map<number, TreeNode>([[props.root.id, tree]])
@@ -40,7 +41,15 @@ async function load(): Promise<void> {
 
 let unsubscribe = (): void => {}
 onMounted(() => {
-  load()
+  if (props.initial) {
+    // Server-rendered page: replies are already embedded, no second request.
+    props.initial.items.forEach((c) => attach(c))
+    cursor.value = props.initial.next_cursor
+    loading.value = false
+    emit('loaded')
+  } else {
+    load().then(() => emit('loaded'))
+  }
   unsubscribe = onCommentPosted((c) => {
     if (c.root_id === props.root.id && c.parent_id !== null) attach(c, true)
   })

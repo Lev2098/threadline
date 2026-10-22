@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { ApiError, type Comment, type CommentPage, type Ordering } from '@/api/types'
 import { formatCount, t } from '@/composables/i18n'
+import { setHead } from '@/composables/head'
 import { connectLive, onCommentPosted } from '@/composables/live'
+import { route, takeInitial } from '@/composables/router'
 import { openComposer, toasts } from '@/composables/ui'
 import AppHeader from './components/AppHeader.vue'
 import CommentNode from './components/CommentNode.vue'
@@ -11,6 +13,9 @@ import CommentsTable from './components/CommentsTable.vue'
 import Composer from './components/Composer.vue'
 import Lightbox from './components/Lightbox.vue'
 import Pager from './components/Pager.vue'
+import Shortcuts from './components/Shortcuts.vue'
+import ThreadPage from './components/ThreadPage.vue'
+import { useCountUp } from '@/composables/fx'
 
 const VALID_ORDERINGS: Ordering[] = ['-created_at', 'created_at', 'username', '-username', 'email', '-email']
 
@@ -27,6 +32,22 @@ const search = reactive({ query: '', page: 1, data: null as CommentPage | null, 
 // Responses can arrive out of order (slow sort, quick re-sort): only the latest may render.
 let listSeq = 0
 let searchSeq = 0
+
+const { value: threadsShown, to: countThreadsTo } = useCountUp()
+watch(
+  () => state.data?.total,
+  (total) => total !== undefined && countThreadsTo(total),
+)
+const heroWords = computed(() => t.value.heroTitle.split(' '))
+
+const showTop = ref(false)
+function onScroll(): void {
+  showTop.value = window.scrollY > 1200
+}
+function toTop(): void {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  document.getElementById('search-input')?.focus({ preventScroll: true })
+}
 
 const isLiveView = computed(() => state.page === 1 && state.ordering === '-created_at')
 
@@ -47,6 +68,13 @@ function writeUrl(replace = false): void {
 }
 
 async function load(): Promise<void> {
+  const embedded = takeInitial<{ page: CommentPage; ordering: Ordering }>('home')
+  if (embedded && embedded.ordering === state.ordering && embedded.page.page === state.page) {
+    // Server-rendered first page: data is already in the HTML, no request needed.
+    state.data = embedded.page
+    state.loading = false
+    return
+  }
   const seq = ++listSeq
   state.loading = true
   state.failed = false
@@ -159,12 +187,28 @@ const searchHeading = computed(() => {
   return t.value.searchNothing(search.query)
 })
 
-onMounted(() => {
+function enterHome(): void {
+  setHead(t.value.homeTitle, t.value.heroLead)
   readUrl()
   load()
+  const q = new URLSearchParams(location.search).get('q')
+  if (q) runSearch(q) // e.g. from Google's sitelinks search box
+}
+
+watch(
+  () => route.value.name,
+  (name) => {
+    if (name === 'home') enterHome()
+  },
+)
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  if (route.value.name === 'home') enterHome()
   connectLive()
   onCommentPosted(onLive)
   window.addEventListener('popstate', () => {
+    if (route.value.name !== 'home') return
     readUrl()
     load()
   })
@@ -174,7 +218,8 @@ onMounted(() => {
 <template>
   <AppHeader @search="runSearch" />
 
-  <main class="page">
+  <ThreadPage v-if="route.name === 'thread'" :id="route.id" />
+  <main v-else class="page">
     <section class="hero" aria-labelledby="hero-title">
       <svg class="hero-thread" viewBox="0 0 120 220" aria-hidden="true">
         <path d="M20 0v80a28 28 0 0 0 28 28h44" />
@@ -183,14 +228,18 @@ onMounted(() => {
         <circle cx="100" cy="192" r="7" class="live-dot" />
       </svg>
       <div class="hero-copy">
-        <h1 id="hero-title">{{ t.heroTitle }}</h1>
+        <h1 id="hero-title" :aria-label="t.heroTitle">
+          <span v-for="(word, i) in heroWords" :key="`${word}-${i}`" class="word" :style="{ '--i': i }" aria-hidden="true"
+            >{{ word }}&#32;</span
+          >
+        </h1>
         <p>{{ t.heroLead }}</p>
         <div class="hero-actions">
           <button type="button" class="btn btn-primary" @click="openComposer()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             {{ t.startDiscussion }}
           </button>
-          <span v-if="state.data" class="stat"><b>{{ formatCount(state.data.total) }}</b> {{ t.statThreads }}</span>
+          <span v-if="state.data" class="stat"><b>{{ formatCount(threadsShown) }}</b> {{ t.statThreads }}</span>
         </div>
       </div>
     </section>
@@ -236,6 +285,13 @@ onMounted(() => {
 
   <Composer />
   <Lightbox />
+  <Shortcuts />
+
+  <Transition name="fade-up">
+    <button v-if="showTop" type="button" class="to-top icon-btn" :aria-label="t.toTop" @click="toTop">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+    </button>
+  </Transition>
 
   <div class="toasts" role="status" aria-live="polite">
     <TransitionGroup name="toast">
@@ -298,6 +354,42 @@ onMounted(() => {
   to {
     transform: scale(1);
   }
+}
+.word {
+  display: inline-block;
+  animation: word-in 0.7s var(--ease-out) both;
+  animation-delay: calc(0.15s + var(--i) * 0.09s);
+}
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) rotate(2deg);
+    filter: blur(6px);
+  }
+}
+.to-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  box-shadow: var(--shadow-lift);
+}
+.to-top svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.25s, transform 0.3s var(--ease-out);
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 .hero h1 {
   margin: 0 0 1rem;
