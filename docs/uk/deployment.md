@@ -76,6 +76,7 @@ nano .env
 DJANGO_ALLOWED_HOSTS=comments.example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://comments.example.com
 DOMAIN=comments.example.com
+SITE_URL=https://comments.example.com
 BEHIND_TLS_PROXY=true
 SECURE_COOKIES=true
 COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
@@ -183,3 +184,7 @@ docker compose restart frontend   # nginx перечитує DNS і баланс
 ```
 
 Стратегію для кількох серверів описано в [scaling.md](scaling.md).
+
+## 13. Пошукові системи
+
+Підключіть Google Search Console і надішліть `sitemap.xml`. Покроково: [seo.md](seo.md#після-деплою-google-search-console).
