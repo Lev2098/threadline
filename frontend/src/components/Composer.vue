@@ -270,7 +270,7 @@ function saveProfile(): void {
             </button>
           </header>
 
-          <blockquote v-if="parentQuote" class="parent-quote">{{ parentQuote }}</blockquote>
+          <blockquote v-if="parentQuote" class="parent-quote"><span>{{ parentQuote }}</span></blockquote>
 
           <form class="form" novalidate @submit.prevent="submit">
             <div class="row two">
@@ -477,6 +477,8 @@ function saveProfile(): void {
   background: var(--signal-soft);
   color: var(--ink-2);
   font-size: 0.92rem;
+}
+.parent-quote span {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -494,6 +496,7 @@ function saveProfile(): void {
 .field {
   display: grid;
   gap: 0.35rem;
+  align-content: start;
 }
 .label {
   font-weight: 600;

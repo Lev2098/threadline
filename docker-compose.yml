@@ -1,0 +1,133 @@
+name: threadline
+
+# Full stack: `cp .env.example .env && docker compose up -d --build`
+# App: http://localhost:8080 · API docs: /api/docs · GraphQL: /graphql · RabbitMQ UI: http://localhost:15672
+
+# One image, three roles (migrate / web / worker). Only "backend" builds it;
+# the others reuse the result, so a single `--build` produces one image.
+x-backend: &backend
+  image: threadline-backend:latest
+  pull_policy: never
+  env_file: .env
+  environment:
+    POSTGRES_HOST: postgres
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-comments}:${RABBITMQ_PASSWORD:-comments}@rabbitmq:5672//
+    ELASTICSEARCH_URL: http://elasticsearch:9200
+    TRUST_PROXY_HEADERS: "true"
+  volumes:
+    - media:/app/media
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-comments}
+      POSTGRES_USER: ${POSTGRES_USER:-comments}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c work_mem=8MB
+      -c random_page_cost=1.1
+      -c max_connections=200
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-comments}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-comments}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 10s
+      timeout: 8s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
+
+  backend:
+    <<: *backend
+    build:
+      context: ./backend
+    command: ["web"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  worker:
+    <<: *backend
+    command: ["worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout 5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  frontend:
+    build:
+      context: ./frontend
+    image: threadline-frontend:latest
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - media:/srv/media:ro
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  esdata:
+  rabbitmq:
+  media:

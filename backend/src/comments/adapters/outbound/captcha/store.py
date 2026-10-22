@@ -35,3 +35,18 @@ class CacheCaptchaStore:
         value: str | None = self._cache.get(PREFIX + key)
         self._cache.delete(PREFIX + key)
         return value
+
+
+class FixedAnswerCaptchaStore:
+    """Load-testing only: every captcha accepts one known answer, so scripted
+    users can post. Enabled solely by LOADTEST_MODE=true (see settings)."""
+
+    def __init__(self, inner: RedisCaptchaStore | CacheCaptchaStore, answer: str) -> None:
+        self._inner = inner
+        self._answer = answer
+
+    def save(self, key: str, answer: str, ttl_seconds: int) -> None:
+        self._inner.save(key, self._answer, ttl_seconds)
+
+    def pop(self, key: str) -> str | None:
+        return self._inner.pop(key)

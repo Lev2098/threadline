@@ -199,6 +199,13 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
 }
 
+# --- Load testing ---------------------------------------------------------------------
+# Never enable in production: makes every captcha accept LOADTEST_CAPTCHA_ANSWER.
+LOADTEST_MODE = env_bool("LOADTEST_MODE")
+LOADTEST_CAPTCHA_ANSWER = env("LOADTEST_CAPTCHA_ANSWER", "loadtest") if LOADTEST_MODE else ""
+if LOADTEST_MODE:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
+
 # --- Files ----------------------------------------------------------------------------
 
 STATIC_URL = "/static/"

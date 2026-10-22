@@ -6,6 +6,7 @@ Celery -> inline) means editing this file and nothing in the core.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from functools import cache
 
@@ -15,7 +16,7 @@ from django.core.cache import cache as django_cache
 
 from comments.adapters.outbound.cache.repository import CachedCommentRepository
 from comments.adapters.outbound.captcha.renderer import PillowCaptchaRenderer
-from comments.adapters.outbound.captcha.store import CacheCaptchaStore, RedisCaptchaStore
+from comments.adapters.outbound.captcha.store import CacheCaptchaStore, FixedAnswerCaptchaStore, RedisCaptchaStore
 from comments.adapters.outbound.events.celery_publisher import COMMENT_POSTED_TASK, CeleryEventPublisher
 from comments.adapters.outbound.media.images import PillowImageProcessor
 from comments.adapters.outbound.media.storage import DjangoFileStorage
@@ -35,6 +36,8 @@ from comments.application.use_cases import (
 )
 from comments.domain.events import CommentPosted
 
+log = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Container:
@@ -50,11 +53,17 @@ class Container:
 
 
 def _captcha_store() -> CaptchaStore:
+    store: RedisCaptchaStore | CacheCaptchaStore
     if settings.REDIS_URL:
         from django_redis import get_redis_connection
 
-        return RedisCaptchaStore(get_redis_connection("default"))
-    return CacheCaptchaStore(django_cache)
+        store = RedisCaptchaStore(get_redis_connection("default"))
+    else:
+        store = CacheCaptchaStore(django_cache)
+    if settings.LOADTEST_CAPTCHA_ANSWER:
+        log.warning("LOADTEST_MODE is on: captchas accept a fixed answer. Never use this in production.")
+        return FixedAnswerCaptchaStore(store, settings.LOADTEST_CAPTCHA_ANSWER)
+    return store
 
 
 def _search_index() -> SearchIndex:

@@ -47,9 +47,6 @@ const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.
 </template>
 
 <style scoped>
-.node {
-  position: relative;
-}
 .card {
   position: relative;
   padding: 0.9rem 1.1rem 1rem;
@@ -70,6 +67,14 @@ const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.
   padding: 0.35rem 0.4rem 0.35rem 0.35rem;
   border-radius: 999px;
   background: var(--surface-2);
+}
+@media (max-width: 640px) {
+  .meta {
+    border-radius: 12px;
+  }
+  .card {
+    padding: 0.75rem 0.8rem 0.85rem;
+  }
 }
 .avatar {
   display: grid;
@@ -135,38 +140,46 @@ time {
   text-overflow: ellipsis;
 }
 
-/* ---------- the thread rails ---------- */
-.children {
+/* ---------- the thread rails ----------
+ * Each reply draws its own pieces: an elbow from the rail into its card and,
+ * unless it is the last sibling, the rail segment continuing past it. So the
+ * rail always ends exactly at the last reply instead of overshooting. */
+.node {
   position: relative;
-  /* Indent shrinks with depth so deep threads stay readable on phones. */
+  min-width: 0; /* long nowrap quotes must not widen the grid track */
+  --rail-color: color-mix(in srgb, var(--signal) 50%, transparent);
+}
+.children {
   margin-left: max(0.6rem, calc(1.6rem - var(--level) * 0.2rem));
   padding-left: max(0.8rem, calc(1.6rem - var(--level) * 0.2rem));
   padding-top: 0.75rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
 }
-.children::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 1.6rem;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--rail);
-  opacity: 0.55;
+.nested {
+  /* this reply's indent = its parent's .children padding */
+  --indent: max(0.8rem, calc(1.6rem - (var(--level) - 1) * 0.2rem));
 }
 .nested > .card::before {
-  /* elbow from the parent rail into this card */
   content: '';
   position: absolute;
-  left: calc(-1 * max(0.8rem, calc(1.6rem - (var(--level) - 1) * 0.2rem)) - 1px);
+  left: calc(-1 * var(--indent) - 1px);
   top: -0.75rem;
-  width: max(0.8rem, calc(1.6rem - (var(--level) - 1) * 0.2rem));
+  width: var(--indent);
   height: 2.1rem;
-  border-left: 2px solid color-mix(in srgb, var(--signal) 55%, transparent);
-  border-bottom: 2px solid color-mix(in srgb, var(--signal) 55%, transparent);
+  border-left: 2px solid var(--rail-color);
+  border-bottom: 2px solid var(--rail-color);
   border-bottom-left-radius: 14px;
+}
+.nested:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--indent) - 1px);
+  top: 0;
+  bottom: -0.75rem;
+  width: 2px;
+  background: var(--rail-color);
 }
 
 /* ---------- live arrival: the one orchestrated moment ---------- */
