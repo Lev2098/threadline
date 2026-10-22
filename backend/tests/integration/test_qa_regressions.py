@@ -117,3 +117,51 @@ def test_search_outage_is_service_unavailable() -> None:
     dead = Elasticsearch("http://127.0.0.1:1", request_timeout=1, max_retries=0)
     with pytest.raises(ServiceUnavailable):
         ElasticsearchSearchIndex(dead, "comments").search("x", 0, 25)
+
+
+# --- chaos-test findings ------------------------------------------------------------
+
+
+def test_realtime_asgi_serves_websockets_only() -> None:
+    from asgiref.sync import async_to_sync
+    from channels.testing import HttpCommunicator
+
+    from config.asgi import application
+
+    async def get(path: str) -> int:
+        response = await HttpCommunicator(application, "GET", path).get_response()
+        return int(response["status"])
+
+    assert async_to_sync(get)("/healthz") == 200
+    assert async_to_sync(get)("/api/v1/comments") == 404
+    assert async_to_sync(get)("/admin/login/") == 404
+
+
+def test_captcha_store_outage_is_503() -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from comments.adapters.outbound.captcha.store import RedisCaptchaStore
+
+    class DeadRedis:
+        def set(self, *args: object, **kwargs: object) -> None:
+            raise RedisConnectionError("down")
+
+        def getdel(self, *args: object) -> None:
+            raise RedisConnectionError("down")
+
+    store = RedisCaptchaStore(DeadRedis())
+    with pytest.raises(ServiceUnavailable):
+        store.save("k", "v", 10)
+    with pytest.raises(ServiceUnavailable):
+        store.pop("k")
+
+
+def test_database_outage_is_json_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    from django.db import OperationalError
+
+    def broken(*args: object, **kwargs: object) -> None:
+        raise OperationalError("connection refused")
+
+    monkeypatch.setattr("comments.application.use_cases.ListRootComments.__call__", broken)
+    response = APIClient().get("/api/v1/comments")
+    assert response.status_code == 503 and response.json()["code"] == "unavailable"
