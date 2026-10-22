@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { t } from '@/composables/i18n'
-import { lightbox, prefersReducedMotion } from '@/composables/ui'
+import { enterModal, lightbox, prefersReducedMotion } from '@/composables/ui'
 
 const frame = ref<HTMLElement>()
 const closeBtn = ref<HTMLButtonElement>()
 const text = ref<string | null>(null)
 const textFailed = ref(false)
-let returnFocus: HTMLElement | null = null
+let leaveModal: (() => void) | null = null
 
 /**
  * FLIP zoom: the frame starts exactly where the thumbnail is and grows into
@@ -51,19 +51,27 @@ function close(): void {
 
 function onKey(event: KeyboardEvent): void {
   if (event.key === 'Escape') close()
+  if (event.key === 'Tab') {
+    // Only two controls: keep focus cycling between them.
+    const items = [closeBtn.value, frame.value?.querySelector<HTMLElement>('a')].filter(Boolean) as HTMLElement[]
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    event.preventDefault()
+    items[(index + (event.shiftKey ? items.length - 1 : 1)) % items.length]?.focus()
+  }
 }
 
 watch(
   () => lightbox.attachment,
   (attachment) => {
     if (attachment) {
-      returnFocus = document.activeElement as HTMLElement | null
+      leaveModal = enterModal()
       document.addEventListener('keydown', onKey)
       if (attachment.kind === 'text') loadText(attachment.url)
       animateIn()
     } else {
       document.removeEventListener('keydown', onKey)
-      returnFocus?.focus()
+      leaveModal?.()
+      leaveModal = null
     }
   },
 )
@@ -86,7 +94,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           <p v-else class="text muted">{{ textFailed ? t.loadError : t.loading }}</p>
           <figcaption>
             <span>{{ lightbox.attachment.name }}</span>
-            <a :href="lightbox.attachment.url" target="_blank" rel="noopener" download>↓</a>
+            <a :href="lightbox.attachment.url" target="_blank" rel="noopener" download :aria-label="t.download" :title="t.download">↓</a>
           </figcaption>
         </figure>
         <button ref="closeBtn" type="button" class="close" :aria-label="t.close" @click="close">

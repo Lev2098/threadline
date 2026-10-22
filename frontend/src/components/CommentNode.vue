@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { Comment } from '@/api/types'
 import { formatDate, t } from '@/composables/i18n'
 import { plainText, safeHtml } from '@/composables/markup'
-import { avatarStyle, initials, openComposer } from '@/composables/ui'
+import { avatarStyle, compact, initials, openComposer } from '@/composables/ui'
 import AttachmentThumb from './AttachmentThumb.vue'
 
 export interface TreeNode {
@@ -12,14 +12,22 @@ export interface TreeNode {
   fresh?: boolean
 }
 
-const props = defineProps<{ node: TreeNode; parent?: Comment | null; level?: number }>()
+const props = defineProps<{ node: TreeNode; parent?: Comment | null; level?: number; flat?: boolean }>()
 const level = computed(() => props.level ?? 0)
+/**
+ * Indentation stops after a few levels (3 on phones, 8 on wider screens):
+ * deeper replies line up under their parent and rely on the quote for context,
+ * so a 50-level thread never squeezes cards to a few pixels.
+ */
+const MAX_INDENT_WIDE = 8
+const MAX_INDENT_COMPACT = 3
+const flatChildren = computed(() => level.value + 1 > (compact.value ? MAX_INDENT_COMPACT : MAX_INDENT_WIDE))
 const c = computed(() => props.node.comment)
 const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.parent.html) : ''))
 </script>
 
 <template>
-  <article class="node" :class="{ fresh: node.fresh, nested: level > 0 }" :style="{ '--level': level }">
+  <article class="node" :class="{ fresh: node.fresh, nested: level > 0 && !flat, flat }" :style="{ '--level': level }">
     <div class="card">
       <header class="meta">
         <span class="avatar" :style="avatarStyle(c.username)" aria-hidden="true">{{ initials(c.username) }}</span>
@@ -40,8 +48,15 @@ const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.
       <AttachmentThumb v-if="c.attachment" :attachment="c.attachment" />
     </div>
 
-    <div v-if="node.children.length" class="children">
-      <CommentNode v-for="child in node.children" :key="child.comment.id" :node="child" :parent="c" :level="level + 1" />
+    <div v-if="node.children.length" class="children" :class="{ flat: flatChildren }">
+      <CommentNode
+        v-for="child in node.children"
+        :key="child.comment.id"
+        :node="child"
+        :parent="c"
+        :level="level + 1"
+        :flat="flatChildren"
+      />
     </div>
   </article>
 </template>
@@ -89,6 +104,11 @@ const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.
   box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%);
 }
 .author {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 650;
 }
 time {
@@ -156,6 +176,23 @@ time {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
+}
+.children.flat {
+  margin-left: 0;
+  padding-left: 0;
+}
+@media (max-width: 640px) {
+  .children {
+    margin-left: 0.35rem;
+    padding-left: 0.7rem;
+  }
+  .children.flat {
+    margin-left: 0;
+    padding-left: 0;
+  }
+  .nested {
+    --indent: 0.7rem;
+  }
 }
 .nested {
   /* this reply's indent = its parent's .children padding */
