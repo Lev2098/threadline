@@ -1,0 +1,210 @@
+/* ---------- tokens ---------- */
+:root {
+  --paper: #f1f2fb;
+  --surface: #ffffff;
+  --surface-2: #f7f7fd;
+  --ink: #1e1b4b;
+  --ink-2: #4a4874;
+  --muted: #7a7c9c;
+  --line: #e2e3f3;
+  --signal: #6d4aff;
+  --signal-2: #a58bff;
+  --signal-soft: #ece7ff;
+  --mint: #12b886;
+  --mint-soft: #dcf7ee;
+  --rose: #e8467c;
+  --rose-soft: #fde6ee;
+  --code-bg: #efedff;
+
+  --font-display: 'Unbounded', 'Golos Text', system-ui, sans-serif;
+  --font-body: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-code: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* modular scale 1.25 on 16px */
+  --step--1: 0.8rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.5625rem;
+  --step-3: 1.953rem;
+  --step-5: clamp(2.2rem, 1.2rem + 4vw, 3.815rem);
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+  --shadow-lift: 0 1px 0 rgb(30 27 75 / 4%), 0 12px 32px -12px rgb(46 32 140 / 22%);
+  --rail: linear-gradient(180deg, var(--signal), var(--signal-2) 60%, transparent);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #100f26;
+    --surface: #1a1938;
+    --surface-2: #211f44;
+    --ink: #ecebff;
+    --ink-2: #c3c1ea;
+    --muted: #8c8ab5;
+    --line: #2e2c58;
+    --signal: #9b87ff;
+    --signal-2: #6d4aff;
+    --signal-soft: #2a2563;
+    --mint: #3ddca8;
+    --mint-soft: #123c35;
+    --rose: #ff6f9c;
+    --rose-soft: #4a1830;
+    --code-bg: #2a2660;
+    --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --paper: #100f26;
+  --surface: #1a1938;
+  --surface-2: #211f44;
+  --ink: #ecebff;
+  --ink-2: #c3c1ea;
+  --muted: #8c8ab5;
+  --line: #2e2c58;
+  --signal: #9b87ff;
+  --signal-2: #6d4aff;
+  --signal-soft: #2a2563;
+  --mint: #3ddca8;
+  --mint-soft: #123c35;
+  --rose: #ff6f9c;
+  --rose-soft: #4a1830;
+  --code-bg: #2a2660;
+  --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
+  color-scheme: dark;
+}
+
+/* ---------- base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--signal);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* rendered comment markup */
+.prose {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.prose code {
+  font-family: var(--font-code);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+.prose strong {
+  font-weight: 650;
+}
+
+/* shared controls */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1.25rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 0.15s var(--ease-out), background-color 0.2s, box-shadow 0.2s;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: var(--signal);
+  color: #fff;
+  box-shadow: 0 8px 22px -10px var(--signal);
+}
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--signal) 88%, #000);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+}
+.btn-ghost:hover {
+  background: var(--signal-soft);
+  color: var(--ink);
+}
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  transition: border-color 0.2s, color 0.2s;
+}
+.icon-btn:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
