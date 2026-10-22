@@ -22,6 +22,9 @@ class CommentsConsumer(AsyncJsonWebsocketConsumer):
         try:
             self.principal = decode_token((query.get("token") or [""])[0])
         except AuthenticationFailed:
+            # Accept first: a close before accept becomes HTTP 403 and the browser
+            # only sees code 1006, so it could never tell "token expired" apart.
+            await self.accept()
             await self.close(code=CLOSE_UNAUTHORIZED)
             return
         await self.channel_layer.group_add(GROUP, self.channel_name)

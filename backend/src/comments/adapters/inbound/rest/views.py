@@ -163,10 +163,6 @@ class SearchView(APIView):
         return Response(page_payload(page))
 
 
-def healthz(request: HttpRequest) -> JsonResponse:
-    return JsonResponse({"status": "ok"})
-
-
 def readyz(request: HttpRequest) -> JsonResponse:
     try:
         with connection.cursor() as cursor:

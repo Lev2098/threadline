@@ -4,7 +4,7 @@
 Traffic is bursty, so we design for a 10x peak (~250 req/s) and check that
 p95 latency stays under 200 ms with a 95/5 read/write mix.
 
-Run (see docs/loadtest.md):
+Run (see docs/uk/scaling.md, section 3):
     docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
     docker compose -f docker-compose.yml -f docker-compose.loadtest.yml run --rm locust
 """

@@ -10,16 +10,21 @@ What is cached is what is expensive:
   new root does. (The first load test showed why: with ~10 writes/s, flushing
   page 1 on every reply made the cache useless and PostgreSQL CPU-bound.)
 * the root count is kept with INCR instead of re-running COUNT(*);
-* threads are cached whole and invalidated per root.
+* the first slice of each thread (no cursor) is cached whole and invalidated
+  per root. Cursor slices are not cached: arbitrary cursors would let anyone
+  fill Redis with unique keys and evict captchas and throttle counters.
 
 Invalidation uses version counters instead of deleting keys: bumping a
 version makes all dependent entries unreachable in O(1), and they expire on
 their own. Versions are bumped after commit, never before, so a concurrent
-reader can't re-cache pre-commit data under the new version.
+reader can't re-cache pre-commit data under the new version. A missing version
+(expired or evicted) restarts from the current time in ms, never from 1, so it
+can't collide with entries cached under an older version.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from contextlib import suppress
 
@@ -30,7 +35,10 @@ from comments.domain.comment import Comment
 from comments.domain.values import Ordering
 
 ROOTS_TTL = 300
-COUNT_TTL = 600  # self-heals any drift of the INCR-maintained counter
+# A reader recomputing the count can race a commit and miss one row; the short
+# TTL bounds that drift to a minute.
+COUNT_TTL = 60
+VERSION_TTL = 86_400
 THREAD_TTL = 600
 # Only the first pages are hot; deep pages are cheap enough and rarely repeat.
 CACHED_ROOT_PAGES = 10
@@ -74,6 +82,8 @@ class CachedCommentRepository:
         return cached
 
     def thread(self, root_id: int, after_path: str | None, limit: int) -> list[Comment]:
+        if after_path:
+            return self._inner.thread(root_id, after_path, limit)
         key = f"thread:{root_id}:v{self._version(f'thread:{root_id}:ver')}:{after_path or ''}:{limit}"
         cached: list[Comment] | None = self._cache.get(key)
         if cached is None:
@@ -84,15 +94,15 @@ class CachedCommentRepository:
     def _version(self, key: str) -> int:
         version: int | None = self._cache.get(key)
         if version is None:
-            self._cache.add(key, 1, timeout=None)
-            version = self._cache.get(key) or 1
+            fresh = time.time_ns() // 1_000_000
+            self._cache.add(key, fresh, VERSION_TTL)
+            version = self._cache.get(key) or fresh
         return version
 
     def _invalidate(self, root_id: int | None, is_root: bool) -> None:
         if is_root:
             self._bump("roots:ver")
-            # Missing key: the next read computes it. A reader racing this INCR
-            # can over-count by one; COUNT_TTL bounds how long that lasts.
+            # Missing key: the next read computes it (see COUNT_TTL).
             with suppress(ValueError):
                 self._cache.incr(ROOTS_COUNT_KEY)
         elif root_id is not None:
@@ -102,4 +112,4 @@ class CachedCommentRepository:
         try:
             self._cache.incr(key)
         except ValueError:  # key missing or evicted
-            self._cache.set(key, 2, timeout=None)
+            self._cache.set(key, time.time_ns() // 1_000_000, VERSION_TTL)
