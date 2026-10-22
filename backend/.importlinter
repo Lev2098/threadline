@@ -1,0 +1,34 @@
+[importlinter]
+root_packages =
+    comments
+include_external_packages = True
+
+# Driving adapters call the composition root, which wires driven adapters
+# into use cases. Nothing may import "upwards".
+[importlinter:contract:layers]
+name = Hexagon layers: inbound -> bootstrap -> outbound -> application -> domain
+type = layers
+layers =
+    comments.adapters.inbound
+    comments.bootstrap
+    comments.adapters.outbound
+    comments.application
+    comments.domain
+
+[importlinter:contract:pure-core]
+name = Domain and application are framework-free
+type = forbidden
+source_modules =
+    comments.domain
+    comments.application
+forbidden_modules =
+    django
+    rest_framework
+    channels
+    celery
+    redis
+    elasticsearch
+    PIL
+    nh3
+    strawberry
+    jwt

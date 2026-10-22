@@ -1,0 +1,34 @@
+# Overlay for load testing. Never deploy with this file: it disables throttles
+# and makes captchas accept a fixed answer.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml exec backend python manage.py seed_comments --count 1000000
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml exec backend python manage.py search_reindex
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml run --rm locust
+
+services:
+  backend:
+    environment:
+      LOADTEST_MODE: "true"
+      WEB_CONCURRENCY: "4"
+      # Locust calls Django directly by its service name.
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+
+  worker:
+    environment:
+      LOADTEST_MODE: "true"
+
+  locust:
+    image: locustio/locust:2.37.0
+    profiles: ["loadtest"]
+    volumes:
+      - ./loadtest:/mnt/locust
+    working_dir: /mnt/locust
+    # Hits Django directly (bypassing nginx per-IP limits) to measure the app itself.
+    command: >
+      -f /mnt/locust/locustfile.py --host http://backend:8000
+      --headless --users ${LOCUST_USERS:-300} --spawn-rate ${LOCUST_SPAWN_RATE:-30}
+      --run-time ${LOCUST_RUN_TIME:-3m}
+      --html /mnt/locust/reports/report.html --csv /mnt/locust/reports/stats
+    depends_on:
+      backend: { condition: service_healthy }
