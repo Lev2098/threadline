@@ -1,0 +1,19 @@
+<main class="ssr">
+        <p><a href="{{ home_url }}">← {{ text.back }}</a></p>
+        <article id="c{{ root.id }}" class="ssr-root">
+          <h1>{{ headline }}</h1>
+          <p><strong>{{ root.username }}</strong> · <time datetime="{{ root.iso }}">{{ root.date }}</time> · {{ root.replies }} {{ text.replies }}</p>
+          <div>{{ root.html|safe }}</div>
+          {% if root.image %}<p><img src="{{ root.image.url }}" alt="{{ root.image.name }}" width="{{ root.image.width }}" height="{{ root.image.height }}" /></p>{% endif %}
+        </article>
+        <ol class="ssr-replies">
+          {% for reply in replies %}<li id="c{{ reply.id }}" style="margin-left: {{ reply.indent }}rem">
+            <article>
+              <p><strong>{{ reply.username }}</strong> · <time datetime="{{ reply.iso }}">{{ reply.date }}</time></p>
+              <div>{{ reply.html|safe }}</div>
+            </article>
+          </li>
+          {% endfor %}
+        </ol>
+      </main>
+      {{ initial|json_script:"tl-initial" }}

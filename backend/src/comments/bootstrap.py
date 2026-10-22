@@ -26,6 +26,7 @@ from comments.adapters.outbound.sanitizer import Nh3Sanitizer
 from comments.adapters.outbound.search.database import DatabaseSearchIndex
 from comments.application.ports import CaptchaStore, SearchIndex
 from comments.application.use_cases import (
+    GetComment,
     GetThread,
     HandleCommentPosted,
     IssueCaptcha,
@@ -46,6 +47,7 @@ class Container:
     post_comment: PostComment
     list_root_comments: ListRootComments
     get_thread: GetThread
+    get_comment: GetComment
     search_comments: SearchComments
     handle_comment_posted: HandleCommentPosted
     search_index: SearchIndex
@@ -115,6 +117,7 @@ def container() -> Container:
         ),
         list_root_comments=ListRootComments(repository),
         get_thread=GetThread(repository),
+        get_comment=GetComment(repository),
         search_comments=SearchComments(search_index, repository),
         # Workers bypass the cache and read the primary: the event arrives right
         # after commit, when a replica may not have the row yet.

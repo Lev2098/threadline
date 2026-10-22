@@ -211,3 +211,101 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- motion helpers (all disabled by the reduced-motion rule above) ---------- */
+.fx-burst {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+.fx-burst i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%) scale(var(--s));
+  animation: fx-burst 0.95s cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+@keyframes fx-burst {
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 60px)) scale(calc(var(--s) * 0.4))
+      rotate(160deg);
+  }
+}
+
+/* theme switch: the new theme grows as a circle from the toggle button */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: vt-reveal 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes vt-reveal {
+  from {
+    clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0));
+  }
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 0));
+  }
+}
+
+/* server-rendered markup, visible to crawlers and until the app boots */
+.ssr {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2.5rem clamp(1rem, 4vw, 2.5rem);
+}
+.ssr h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 1rem + 3vw, 3rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.ssr-list,
+.ssr-replies {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.ssr-list article,
+.ssr-replies article,
+.ssr-root {
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+.ssr-list h2 {
+  margin: 0 0 0.3rem;
+  font-size: var(--step-0);
+}
+.ssr-list p,
+.ssr-replies p {
+  margin: 0;
+  color: var(--muted);
+}
+.ssr-pager {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+
+/* threads grow in: each level appears a beat after its parent */
+.thread .node > .card {
+  animation: node-in 0.45s var(--ease-out) both;
+  animation-delay: calc(min(var(--level, 0), 8) * 55ms);
+}
+@keyframes node-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}

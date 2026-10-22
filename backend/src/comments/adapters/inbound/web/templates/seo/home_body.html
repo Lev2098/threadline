@@ -1,0 +1,19 @@
+<main class="ssr" aria-labelledby="ssr-title">
+        <h1 id="ssr-title">{{ text.home_heading }}</h1>
+        <p>{{ text.home_description }}</p>
+        <ol class="ssr-list">
+          {% for item in items %}<li>
+            <article>
+              <h2><a href="{{ item.url }}">{{ item.headline }}</a></h2>
+              <p><strong>{{ item.username }}</strong> · <time datetime="{{ item.iso }}">{{ item.date }}</time> · {{ item.replies }} {{ text.replies }}</p>
+            </article>
+          </li>
+          {% endfor %}
+        </ol>
+        <nav class="ssr-pager" aria-label="{{ text.page }}">
+          {% if prev_url %}<a rel="prev" href="{{ prev_url }}">← {{ text.prev }}</a>{% endif %}
+          <span>{{ text.page }} {{ page }} / {{ pages }}</span>
+          {% if next_url %}<a rel="next" href="{{ next_url }}">{{ text.next }} →</a>{% endif %}
+        </nav>
+      </main>
+      {{ initial|json_script:"tl-initial" }}
