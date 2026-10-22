@@ -168,6 +168,12 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# Publisher confirms: send_task returns only after RabbitMQ has persisted the
+# message. A broker crash right after a 201 can no longer drop the event; if the
+# broker doesn't confirm, the publisher's inline fallback handles it instead.
+CELERY_BROKER_TRANSPORT_OPTIONS = {"confirm_publish": True, "max_retries": 2, "interval_start": 0, "interval_step": 0.5}
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_BROKER_CONNECTION_TIMEOUT = 2  # a down broker must not hold a request; the fallback takes over
 
 # --- Search -----------------------------------------------------------------------
 

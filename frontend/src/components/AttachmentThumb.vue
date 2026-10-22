@@ -17,7 +17,8 @@ function kb(size: number): string {
 </script>
 
 <template>
-  <button ref="el" type="button" class="thumb" :class="attachment.kind" :aria-label="`${t.openFile}: ${attachment.name}`" @click="open">
+  <button ref="el" type="button" class="thumb" :class="attachment.kind" :title="t.openFile" @click="open">
+    <span class="sr-only">{{ t.openFile }}: </span>
     <img
       v-if="attachment.kind === 'image'"
       :src="attachment.url"

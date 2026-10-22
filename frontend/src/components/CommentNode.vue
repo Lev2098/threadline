@@ -53,7 +53,9 @@ const quote = computed(() => (props.parent && level.value > 1 ? plainText(props.
         <span class="avatar" :style="avatarStyle(c.username)" aria-hidden="true">{{ initials(c.username) }}</span>
         <strong class="author">{{ c.username }}</strong>
         <time :datetime="c.created_at">{{ formatDate(c.created_at) }}</time>
-        <a class="perma" :href="permalink" :title="t.permalink" :aria-label="t.permalink" @click="copyPermalink">#</a>
+        <a class="perma" :href="permalink" :title="t.permalink" @click="copyPermalink"
+          >#<span class="sr-only"> {{ t.permalink }}</span></a
+        >
         <a v-if="c.home_page" class="home" :href="c.home_page" target="_blank" rel="nofollow noopener noreferrer" :title="t.homepage">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5M6.5 10v9h11v-9" /></svg>
           <span class="sr-only">{{ t.homepage }}</span>
@@ -186,7 +188,7 @@ time {
   border-radius: 999px;
   background: transparent;
   padding: 0.3rem 0.7rem;
-  color: var(--signal);
+  color: var(--signal-ink);
   font-size: var(--step--1);
   font-weight: 600;
 }

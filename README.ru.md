@@ -39,7 +39,7 @@
 - **Полнотекстовый поиск** на Elasticsearch.
 - **Интерфейс UA/RU**, светлая и тёмная тема, адаптивная вёрстка до 360 px, доступность с клавиатуры, поддержка `prefers-reduced-motion`.
 - **API:** REST с OpenAPI/Swagger (`/api/docs`), GraphQL (`/graphql`), WebSocket (`/ws/comments/`).
-- **SEO.** Каждая ветка имеет собственный адрес `/t/<id>` и отдаётся сервером как готовый HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Есть `robots.txt`, `sitemap.xml` на сотни тысяч веток и настоящие 404. Подробности — [docs/ru/seo.md](docs/ru/seo.md).
+- **SEO.** Каждая ветка имеет собственный адрес `/t/<id>` и отдаётся сервером как готовый HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Есть `robots.txt`, `sitemap.xml` на сотни тысяч веток и настоящие 404. Lighthouse: desktop 100/100/100/100, mobile 94–95/100/100/100. Подробности — [docs/ru/seo.md](docs/ru/seo.md).
 - **Анимации и мелкие радости** (все отключаются при `prefers-reduced-motion`): заголовок появляется по словам, счётчик «докручивается», ветки «прорастают», тема меняется кругом от кнопки, при публикации разлетается конфетти, по таблице идёт spotlight за курсором. Горячие клавиши: `/` поиск, `n` новое обсуждение, `t` тема, `?` справка.
 
 ## Как выполнены требования ТЗ
@@ -138,7 +138,7 @@ ruff check src tests && mypy src && lint-imports          # стиль, типы
 cd ../frontend && npm ci && npm run typecheck
 ```
 
-- **123 теста.** Юнит-тесты домена и use cases с in-memory фейками, без Django и БД. Интеграционные тесты REST, GraphQL и WebSocket. Отдельный набор регрессионных тестов на каждый баг, найденный при QA.
+- **134 теста.** Юнит-тесты домена и use cases с in-memory фейками, без Django и БД. Интеграционные тесты REST, GraphQL и WebSocket. Отдельный набор регрессионных тестов на каждый баг, найденный при QA.
 - **`import-linter` проверяет границы гексагона.** Домен и приложение не могут импортировать Django, Redis, Celery и т. п. Слои не могут импортировать «вверх».
 - **mypy в strict-режиме.**
 
