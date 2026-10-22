@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client'
-import type { Comment, CommentPage, Ordering } from '@/api/types'
-import { t } from '@/composables/i18n'
+import { ApiError, type Comment, type CommentPage, type Ordering } from '@/api/types'
+import { formatCount, t } from '@/composables/i18n'
 import { connectLive, onCommentPosted } from '@/composables/live'
 import { openComposer, toasts } from '@/composables/ui'
 import AppHeader from './components/AppHeader.vue'
@@ -23,7 +23,10 @@ const state = reactive({
 })
 const fresh = ref(new Set<number>())
 const pending = ref<Comment[]>([])
-const search = reactive({ query: '', data: null as CommentPage | null, loading: false })
+const search = reactive({ query: '', page: 1, data: null as CommentPage | null, loading: false, failed: false })
+// Responses can arrive out of order (slow sort, quick re-sort): only the latest may render.
+let listSeq = 0
+let searchSeq = 0
 
 const isLiveView = computed(() => state.page === 1 && state.ordering === '-created_at')
 
@@ -35,25 +38,38 @@ function readUrl(): void {
   state.ordering = ordering && VALID_ORDERINGS.includes(ordering) ? ordering : '-created_at'
 }
 
-function writeUrl(): void {
+function writeUrl(replace = false): void {
   const params = new URLSearchParams()
   if (state.page > 1) params.set('page', String(state.page))
   if (state.ordering !== '-created_at') params.set('ordering', state.ordering)
   const qs = params.toString()
-  history.pushState(null, '', qs ? `?${qs}` : location.pathname)
+  history[replace ? 'replaceState' : 'pushState'](null, '', qs ? `?${qs}` : location.pathname)
 }
 
 async function load(): Promise<void> {
+  const seq = ++listSeq
   state.loading = true
   state.failed = false
   try {
-    state.data = await api.listComments(state.page, state.ordering)
-    state.page = state.data.page
+    const data = await api.listComments(state.page, state.ordering)
+    if (seq !== listSeq) return
+    state.data = data
+    if (state.page !== data.page) {
+      state.page = data.page // the server clamps pages past the end
+      writeUrl(true)
+    }
     pending.value = []
-  } catch {
+  } catch (e) {
+    if (seq !== listSeq) return
+    if (e instanceof ApiError && e.status === 400 && state.page !== 1) {
+      // A page number the API refuses (e.g. hand-edited URL): start over at page 1.
+      state.page = 1
+      writeUrl(true)
+      return load()
+    }
     state.failed = true
   } finally {
-    state.loading = false
+    if (seq === listSeq) state.loading = false
   }
 }
 
@@ -110,19 +126,38 @@ function showPending(): void {
   }
 }
 
-async function runSearch(query: string): Promise<void> {
+async function runSearch(query: string, page = 1): Promise<void> {
+  const seq = ++searchSeq
+  if (query !== search.query) search.data = null // never show old results under a new query
   search.query = query
+  search.page = page
+  search.failed = false
   if (!query) {
-    search.data = null
+    search.loading = false
     return
   }
   search.loading = true
   try {
-    search.data = await api.search(query)
+    const data = await api.search(query, page)
+    if (seq === searchSeq) search.data = data
+  } catch {
+    if (seq === searchSeq) search.failed = true
   } finally {
-    search.loading = false
+    if (seq === searchSeq) search.loading = false
   }
 }
+
+function closeSearch(): void {
+  runSearch('')
+  document.getElementById('search-input')?.focus()
+}
+
+const searchHeading = computed(() => {
+  if (search.loading && !search.data) return t.value.loading
+  if (search.failed) return t.value.searchFailed
+  if (search.data?.total) return t.value.searchResults(search.data.total, search.query)
+  return t.value.searchNothing(search.query)
+})
 
 onMounted(() => {
   readUrl()
@@ -155,21 +190,25 @@ onMounted(() => {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             {{ t.startDiscussion }}
           </button>
-          <span v-if="state.data" class="stat"><b>{{ state.data.total.toLocaleString() }}</b> {{ t.statThreads }}</span>
+          <span v-if="state.data" class="stat"><b>{{ formatCount(state.data.total) }}</b> {{ t.statThreads }}</span>
         </div>
       </div>
     </section>
 
-    <section v-if="search.query" class="search-results" aria-live="polite">
+    <section v-if="search.query" class="search-results" aria-live="polite" :aria-busy="search.loading">
       <header class="results-head">
-        <h2>
-          {{ search.data && search.data.total ? t.searchResults(search.data.total, search.query) : search.loading ? t.loading : t.searchNothing(search.query) }}
-        </h2>
-        <button type="button" class="btn btn-ghost" @click="runSearch('')">{{ t.closeSearch }}</button>
+        <h2>{{ searchHeading }}</h2>
+        <div class="results-actions">
+          <button v-if="search.failed" type="button" class="btn btn-primary" @click="runSearch(search.query, search.page)">
+            {{ t.retry }}
+          </button>
+          <button type="button" class="btn btn-ghost" @click="closeSearch">{{ t.closeSearch }}</button>
+        </div>
       </header>
-      <div class="results-list">
+      <div class="results-list" :class="{ dim: search.loading }">
         <CommentNode v-for="c in search.data?.items ?? []" :key="c.id" :node="{ comment: c, children: [] }" />
       </div>
+      <Pager v-if="search.data" :page="search.data.page" :pages="search.data.pages" @go="(p) => runSearch(search.query, p)" />
     </section>
 
     <section id="discussions" class="discussions" :aria-busy="state.loading">
@@ -387,6 +426,10 @@ onMounted(() => {
   gap: 1rem;
   margin-bottom: 1rem;
 }
+.results-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 .results-head h2 {
   margin: 0;
   font-family: var(--font-display);
@@ -429,7 +472,7 @@ onMounted(() => {
 }
 .toast.error {
   background: var(--rose);
-  color: #fff;
+  color: var(--paper);
 }
 .toast-enter-active,
 .toast-leave-active {

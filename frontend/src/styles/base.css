@@ -5,16 +5,17 @@
   --surface-2: #f7f7fd;
   --ink: #1e1b4b;
   --ink-2: #4a4874;
-  --muted: #7a7c9c;
+  --muted: #5f6283;
   --line: #e2e3f3;
   --signal: #6d4aff;
   --signal-2: #a58bff;
   --signal-soft: #ece7ff;
-  --mint: #12b886;
+  --mint: #0b7a5a;
   --mint-soft: #dcf7ee;
-  --rose: #e8467c;
+  --rose: #c42a5f;
   --rose-soft: #fde6ee;
   --code-bg: #efedff;
+  --on-signal: #ffffff;
 
   --font-display: 'Unbounded', 'Golos Text', system-ui, sans-serif;
   --font-body: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -54,6 +55,7 @@
     --rose: #ff6f9c;
     --rose-soft: #4a1830;
     --code-bg: #2a2660;
+  --on-signal: #14102e;
     --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
     color-scheme: dark;
   }
@@ -74,6 +76,7 @@
   --rose: #ff6f9c;
   --rose-soft: #4a1830;
   --code-bg: #2a2660;
+  --on-signal: #14102e;
   --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
   color-scheme: dark;
 }
@@ -166,7 +169,7 @@ a {
 }
 .btn-primary {
   background: var(--signal);
-  color: #fff;
+  color: var(--on-signal);
   box-shadow: 0 8px 22px -10px var(--signal);
 }
 .btn-primary:hover {
