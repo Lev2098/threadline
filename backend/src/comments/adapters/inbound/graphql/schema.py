@@ -11,11 +11,14 @@ from enum import Enum
 
 import strawberry
 from django.core.files.storage import default_storage
+from strawberry.extensions import MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
 
 from comments.application.dto import ListRootsQuery
 from comments.bootstrap import container
 from comments.domain.comment import Comment as DomainComment
 from comments.domain.values import Ordering
+
+MAX_PAGE = 1_000_000  # same bound as the REST serializer
 
 
 @strawberry.enum
@@ -97,6 +100,7 @@ class Thread:
 class Query:
     @strawberry.field(description="Root comments, 25 per page.")
     def comments(self, page: int = 1, ordering: CommentOrdering = CommentOrdering.CREATED_AT_DESC) -> CommentPage:
+        page = min(max(1, page), MAX_PAGE)
         result = container().list_root_comments(ListRootsQuery(ordering=Ordering.parse(ordering.value), page=page))
         return CommentPage(
             items=[Comment.from_domain(c) for c in result.items],
@@ -128,4 +132,14 @@ class Mutation:
         return container().preview_comment(text)
 
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+# Cost limits: without them one request with dozens of aliased deep pages
+# multiplies work and bypasses per-request throttles.
+schema = strawberry.Schema(
+    query=Query,
+    mutation=Mutation,
+    extensions=[
+        lambda: QueryDepthLimiter(max_depth=6),
+        lambda: MaxAliasesLimiter(max_alias_count=3),
+        lambda: MaxTokensLimiter(max_token_count=1000),
+    ],
+)

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from django.core.cache import BaseCache
+from redis.exceptions import RedisError
+
+from comments.domain.errors import ServiceUnavailable
 
 PREFIX = "captcha:"
 
@@ -15,11 +18,22 @@ class RedisCaptchaStore:
         self._client = client
 
     def save(self, key: str, answer: str, ttl_seconds: int) -> None:
-        self._client.set(PREFIX + key, answer, ex=ttl_seconds)
+        try:
+            self._client.set(PREFIX + key, answer, ex=ttl_seconds)
+        except RedisError as exc:
+            raise _unavailable() from exc
 
     def pop(self, key: str) -> str | None:
-        value = self._client.getdel(PREFIX + key)
+        try:
+            value = self._client.getdel(PREFIX + key)
+        except RedisError as exc:
+            raise _unavailable() from exc
         return value.decode() if isinstance(value, bytes) else value
+
+
+def _unavailable() -> ServiceUnavailable:
+    # Without the captcha store nothing can be posted; say so instead of a bare 500.
+    return ServiceUnavailable("Posting is temporarily unavailable. Please try again in a minute.")
 
 
 class CacheCaptchaStore:

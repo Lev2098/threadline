@@ -1,0 +1,205 @@
+# Edge proxy: serves the SPA and media, forwards API / GraphQL / WebSocket to Django.
+# Rendered by the nginx image's envsubst step: only ${TRUSTED_PROXIES} is an
+# environment variable, every other $name is an nginx variable.
+
+# Real client IP. Only addresses in TRUSTED_PROXIES (Caddy / a load balancer in
+# front of us) may set X-Forwarded-For; anyone else can't spoof it. The default
+# trusts nobody, so without a proxy $remote_addr stays the TCP peer.
+set_real_ip_from ${TRUSTED_PROXIES};
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+# Scheme as seen by the client: from a trusted TLS proxy if present.
+map $http_x_forwarded_proto $client_scheme {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+# Docker's DNS: containers get a new IP when recreated, so upstream names are
+# re-resolved continuously (nginx >= 1.27.3 "resolve") instead of once at start.
+resolver 127.0.0.11 valid=5s ipv6=off;
+resolver_timeout 2s;
+
+upstream backend {          # HTTP API: gunicorn (WSGI)
+    zone backend 64k;
+    server backend:8000 resolve;
+    keepalive 32;
+    keepalive_timeout 50s;  # shorter than gunicorn --keep-alive 75: nginx closes first, no reset race
+}
+
+upstream realtime {         # WebSockets: uvicorn (ASGI, Channels)
+    zone realtime 64k;
+    server realtime:8000 resolve;
+}
+
+# Per-IP limits in front of Django's per-client throttles: cheap to enforce here,
+# and abusive traffic never reaches Python.
+map $request_method $write_key {
+    POST    $binary_remote_addr;
+    default "";            # empty key = not counted, so GETs only hit api_read
+}
+limit_req_zone $binary_remote_addr zone=api_read:10m rate=30r/s;
+limit_req_zone $write_key zone=api_write:10m rate=2r/s;
+limit_req_zone $binary_remote_addr zone=admin_login:1m rate=10r/m;
+limit_req_status 429;
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+    server_tokens off;
+    client_max_body_size 11m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+    add_header X-Frame-Options DENY always;
+
+    proxy_http_version 1.1;
+    # A dead upstream must fail fast into the JSON 503 / SPA fallback, not hang for 60 s.
+    proxy_connect_timeout 3s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $client_scheme;
+    proxy_set_header Connection "";
+
+    location = /nginx-health {
+        access_log off;
+        return 200 "ok";
+    }
+
+    # Errors produced by nginx itself, in the API's JSON shape.
+    location @json_413 {
+        default_type application/json;
+        return 413 '{"code":"too_large","message":"The upload is too large.","errors":{"attachment":"The upload is too large."}}';
+    }
+    location @json_429 {
+        default_type application/json;
+        add_header Retry-After 1 always;
+        return 429 '{"code":"throttled","message":"Too many requests. Please slow down.","errors":{}}';
+    }
+    location @json_5xx {
+        default_type application/json;
+        return 503 '{"code":"unavailable","message":"The service is temporarily unavailable.","errors":{}}';
+    }
+
+    # Exact match: only creating a comment counts against the write limit;
+    # preview, thread and search fall through to /api/ (read limit).
+    location = /api/v1/comments {
+        limit_req zone=api_read burst=60 nodelay;
+        limit_req zone=api_write burst=5 nodelay;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options nosniff always;
+        error_page 413 = @json_413;
+        error_page 429 = @json_429;
+        error_page 502 503 504 = @json_5xx;
+        proxy_pass http://backend;
+    }
+
+    location /api/ {
+        limit_req zone=api_read burst=60 nodelay;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options nosniff always;
+        error_page 429 = @json_429;
+        error_page 502 503 504 = @json_5xx;
+        proxy_pass http://backend;
+    }
+
+    location /graphql {
+        limit_req zone=api_read burst=30 nodelay;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        error_page 429 = @json_429;
+        error_page 502 503 504 = @json_5xx;
+        proxy_pass http://backend;
+    }
+
+    location = /admin/login/ {
+        limit_req zone=admin_login burst=5 nodelay;
+        proxy_pass http://backend;
+    }
+
+    location /ws/ {
+        proxy_pass http://realtime;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    location ~ ^/(admin/|static/|healthz$|readyz$) {
+        proxy_pass http://backend;
+    }
+
+    # User uploads: never executable, never sniffed into HTML.
+    location /media/ {
+        alias /srv/media/;
+        # File names are random and never reused, so they can be cached forever.
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy same-origin always;
+        add_header X-Frame-Options DENY always;
+        add_header Content-Security-Policy "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox" always;
+        charset utf-8;
+        charset_types text/plain;
+        types {
+            image/jpeg jpg jpeg;
+            image/png png;
+            image/gif gif;
+            text/plain txt;
+        }
+        default_type application/octet-stream;
+    }
+
+    # Server-rendered pages (SEO + first paint). If Django is down the static
+    # SPA shell is served instead, so the site never goes blank.
+    location = / {
+        limit_req zone=api_read burst=60 nodelay;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        error_page 502 503 504 = @spa;
+        proxy_pass http://backend;
+    }
+    location ~ ^/t/[0-9]+/?$ {
+        limit_req zone=api_read burst=60 nodelay;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        error_page 502 503 504 = @spa;
+        proxy_pass http://backend;
+    }
+    location @spa {
+        root /usr/share/nginx/html;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files /index.html =503;
+    }
+    location ~ ^/(robots\.txt|sitemap\.xml|sitemaps/) {
+        limit_req zone=api_read burst=30 nodelay;
+        proxy_pass http://backend;
+    }
+    # The built shell, fetched by Django to wrap server-rendered pages.
+    location = /index.html {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+    }
+
+    location /assets/ {
+        root /usr/share/nginx/html;
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri /index.html;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+    }
+}

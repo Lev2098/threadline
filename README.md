@@ -39,6 +39,8 @@
 - **Повнотекстовий пошук** на Elasticsearch.
 - **Інтерфейс UA/RU**, світла й темна тема, адаптивна верстка до 360 px, доступність з клавіатури, підтримка `prefers-reduced-motion`.
 - **API:** REST з OpenAPI/Swagger (`/api/docs`), GraphQL (`/graphql`), WebSocket (`/ws/comments/`).
+- **SEO.** Кожна гілка має власну адресу `/t/<id>` і віддається сервером як готовий HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Є `robots.txt`, `sitemap.xml` на сотні тисяч гілок і справжні 404. Lighthouse: desktop 100/100/100/100, mobile 94–95/100/100/100. Деталі — [docs/uk/seo.md](docs/uk/seo.md).
+- **Анімації й дрібні радощі** (усі вимикаються при `prefers-reduced-motion`): заголовок з'являється по словах, лічильник «докручується», гілки «проростають», тема змінюється кругом від кнопки, при публікації розлітається конфеті, по таблиці йде spotlight за курсором. Гарячі клавіші: `/` пошук, `n` нове обговорення, `t` тема, `?` довідка.
 
 ## Як виконано вимоги ТЗ
 
@@ -130,13 +132,13 @@ docker-compose.loadtest.yml  # оверлей для навантажуваль�
 docker compose --profile test run --rm tests
 
 # Або локально (SQLite + in-memory адаптери, без жодних сервісів):
-cd backend && pip install -e '.[dev]' && pytest
+cd backend && pip install -e '.[dev]' && pytest           # Python ≥ 3.12
 
 ruff check src tests && mypy src && lint-imports          # стиль, типи (strict), межі гексагона
-cd frontend && npm run typecheck
+cd ../frontend && npm ci && npm run typecheck
 ```
 
-- **77 тестів.** Юніт-тести домену та use cases з in-memory фейками, без Django і БД. Інтеграційні тести REST, GraphQL і WebSocket.
+- **134 тести.** Юніт-тести домену та use cases з in-memory фейками, без Django і БД. Інтеграційні тести REST, GraphQL і WebSocket. Окремий набір регресійних тестів на кожен баг, знайдений під час QA.
 - **`import-linter` перевіряє межі гексагона.** Домен і застосунок не можуть імпортувати Django, Redis, Celery тощо. Шари не можуть імпортувати «вгору».
 - **mypy у strict-режимі.**
 
@@ -148,5 +150,7 @@ cd frontend && npm run typecheck
 | Розгортання крок за кроком | [docs/uk/deployment.md](docs/uk/deployment.md) | [docs/ru/deployment.md](docs/ru/deployment.md) |
 | Масштабування та навантажувальний тест | [docs/uk/scaling.md](docs/uk/scaling.md) | [docs/ru/scaling.md](docs/ru/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/uk/api.md](docs/uk/api.md) | [docs/ru/api.md](docs/ru/api.md) |
+| SEO та індексація | [docs/uk/seo.md](docs/uk/seo.md) | [docs/ru/seo.md](docs/ru/seo.md) |
+| QA: як перевірявся продукт | [docs/uk/qa.md](docs/uk/qa.md) | [docs/ru/qa.md](docs/ru/qa.md) |
 | Сценарій демо-відео | [docs/uk/video.md](docs/uk/video.md) | [docs/ru/video.md](docs/ru/video.md) |
 | Схема БД | [docs/db/schema.mysql.sql](docs/db/schema.mysql.sql) (Workbench) · [docs/db/schema.postgresql.sql](docs/db/schema.postgresql.sql) (фактична) | |

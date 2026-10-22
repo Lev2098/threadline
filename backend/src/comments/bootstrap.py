@@ -17,7 +17,7 @@ from django.core.cache import cache as django_cache
 from comments.adapters.outbound.cache.repository import CachedCommentRepository
 from comments.adapters.outbound.captcha.renderer import PillowCaptchaRenderer
 from comments.adapters.outbound.captcha.store import CacheCaptchaStore, FixedAnswerCaptchaStore, RedisCaptchaStore
-from comments.adapters.outbound.events.celery_publisher import COMMENT_POSTED_TASK, CeleryEventPublisher
+from comments.adapters.outbound.events.celery_publisher import BROADCAST_TASK, INDEX_TASK, CeleryEventPublisher
 from comments.adapters.outbound.media.images import PillowImageProcessor
 from comments.adapters.outbound.media.storage import DjangoFileStorage
 from comments.adapters.outbound.persistence.repository import DjangoCommentRepository, DjangoTransactions
@@ -26,6 +26,7 @@ from comments.adapters.outbound.sanitizer import Nh3Sanitizer
 from comments.adapters.outbound.search.database import DatabaseSearchIndex
 from comments.application.ports import CaptchaStore, SearchIndex
 from comments.application.use_cases import (
+    GetComment,
     GetThread,
     HandleCommentPosted,
     IssueCaptcha,
@@ -46,6 +47,7 @@ class Container:
     post_comment: PostComment
     list_root_comments: ListRootComments
     get_thread: GetThread
+    get_comment: GetComment
     search_comments: SearchComments
     handle_comment_posted: HandleCommentPosted
     search_index: SearchIndex
@@ -72,18 +74,25 @@ def _search_index() -> SearchIndex:
 
         from comments.adapters.outbound.search.elastic import ElasticsearchSearchIndex
 
-        client = Elasticsearch(settings.ELASTICSEARCH_URL, request_timeout=5, retry_on_timeout=True, max_retries=2)
-        return ElasticsearchSearchIndex(client, settings.ELASTICSEARCH_INDEX)
+        writer = Elasticsearch(settings.ELASTICSEARCH_URL, request_timeout=10, retry_on_timeout=True, max_retries=2)
+        reader = Elasticsearch(settings.ELASTICSEARCH_URL, request_timeout=2, max_retries=0)
+        return ElasticsearchSearchIndex(writer, settings.ELASTICSEARCH_INDEX, search_client=reader)
     return DatabaseSearchIndex()
 
 
 def _send_comment_posted(payload: dict[str, object]) -> None:
     if settings.CELERY_TASK_ALWAYS_EAGER:  # no broker configured: handle inline
-        container().handle_comment_posted(CommentPosted(**payload))  # type: ignore[arg-type]
+        _handle_inline(CommentPosted(**payload))  # type: ignore[arg-type]
         return
-    # Sent by name: the task lives in an inbound adapter, which the composition
-    # root must not import (see .importlinter).
-    current_app.send_task(COMMENT_POSTED_TASK, args=[payload])
+    # Sent by name: the tasks live in an inbound adapter, which the composition
+    # root must not import (see .importlinter). Two tasks, so retrying the
+    # indexing never re-broadcasts the comment.
+    current_app.send_task(BROADCAST_TASK, args=[payload])
+    current_app.send_task(INDEX_TASK, args=[payload])
+
+
+def _handle_inline(event: CommentPosted) -> None:
+    container().handle_comment_posted(event)
 
 
 @cache
@@ -100,7 +109,7 @@ def container() -> Container:
         post_comment=PostComment(
             repository=repository,
             transactions=transactions,
-            events=CeleryEventPublisher(transactions, _send_comment_posted),
+            events=CeleryEventPublisher(transactions, _send_comment_posted, _handle_inline),
             captchas=_captcha_store(),
             images=PillowImageProcessor(),
             storage=DjangoFileStorage(),
@@ -108,6 +117,7 @@ def container() -> Container:
         ),
         list_root_comments=ListRootComments(repository),
         get_thread=GetThread(repository),
+        get_comment=GetComment(repository),
         search_comments=SearchComments(search_index, repository),
         # Workers bypass the cache and read the primary: the event arrives right
         # after commit, when a replica may not have the row yet.

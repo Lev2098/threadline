@@ -39,6 +39,8 @@
 - **Полнотекстовый поиск** на Elasticsearch.
 - **Интерфейс UA/RU**, светлая и тёмная тема, адаптивная вёрстка до 360 px, доступность с клавиатуры, поддержка `prefers-reduced-motion`.
 - **API:** REST с OpenAPI/Swagger (`/api/docs`), GraphQL (`/graphql`), WebSocket (`/ws/comments/`).
+- **SEO.** Каждая ветка имеет собственный адрес `/t/<id>` и отдаётся сервером как готовый HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Есть `robots.txt`, `sitemap.xml` на сотни тысяч веток и настоящие 404. Lighthouse: desktop 100/100/100/100, mobile 94–95/100/100/100. Подробности — [docs/ru/seo.md](docs/ru/seo.md).
+- **Анимации и мелкие радости** (все отключаются при `prefers-reduced-motion`): заголовок появляется по словам, счётчик «докручивается», ветки «прорастают», тема меняется кругом от кнопки, при публикации разлетается конфетти, по таблице идёт spotlight за курсором. Горячие клавиши: `/` поиск, `n` новое обсуждение, `t` тема, `?` справка.
 
 ## Как выполнены требования ТЗ
 
@@ -130,13 +132,13 @@ docker-compose.loadtest.yml  # оверлей для нагрузочного т
 docker compose --profile test run --rm tests
 
 # Или локально (SQLite + in-memory адаптеры, без каких-либо сервисов):
-cd backend && pip install -e '.[dev]' && pytest
+cd backend && pip install -e '.[dev]' && pytest           # Python ≥ 3.12
 
 ruff check src tests && mypy src && lint-imports          # стиль, типы (strict), границы гексагона
-cd frontend && npm run typecheck
+cd ../frontend && npm ci && npm run typecheck
 ```
 
-- **77 тестов.** Юнит-тесты домена и use cases с in-memory фейками, без Django и БД. Интеграционные тесты REST, GraphQL и WebSocket.
+- **134 теста.** Юнит-тесты домена и use cases с in-memory фейками, без Django и БД. Интеграционные тесты REST, GraphQL и WebSocket. Отдельный набор регрессионных тестов на каждый баг, найденный при QA.
 - **`import-linter` проверяет границы гексагона.** Домен и приложение не могут импортировать Django, Redis, Celery и т. п. Слои не могут импортировать «вверх».
 - **mypy в strict-режиме.**
 
@@ -148,5 +150,7 @@ cd frontend && npm run typecheck
 | Развёртывание шаг за шагом | [docs/ru/deployment.md](docs/ru/deployment.md) | [docs/uk/deployment.md](docs/uk/deployment.md) |
 | Масштабирование и нагрузочный тест | [docs/ru/scaling.md](docs/ru/scaling.md) | [docs/uk/scaling.md](docs/uk/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/ru/api.md](docs/ru/api.md) | [docs/uk/api.md](docs/uk/api.md) |
+| SEO и индексация | [docs/ru/seo.md](docs/ru/seo.md) | [docs/uk/seo.md](docs/uk/seo.md) |
+| QA: как проверялся продукт | [docs/ru/qa.md](docs/ru/qa.md) | [docs/uk/qa.md](docs/uk/qa.md) |
 | Сценарий демо-видео | [docs/ru/video.md](docs/ru/video.md) | [docs/uk/video.md](docs/uk/video.md) |
 | Схема БД | [docs/db/schema.mysql.sql](docs/db/schema.mysql.sql) (Workbench) · [docs/db/schema.postgresql.sql](docs/db/schema.postgresql.sql) (фактическая) | |

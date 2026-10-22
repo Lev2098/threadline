@@ -32,6 +32,11 @@ function storeToken(value: string | null): void {
   }
 }
 
+/** Forget the current token (expired or rejected); the next call fetches a new one. */
+export function resetToken(): void {
+  storeToken(null)
+}
+
 /** Anonymous JWT identifying this browser; fetched once and reused. */
 export async function ensureToken(): Promise<string> {
   if (token) return token
@@ -71,6 +76,8 @@ async function request<T>(path: string, init: RequestInit = {}, auth = false, re
 export const api = {
   listComments: (page: number, ordering: Ordering) =>
     request<CommentPage>(`/comments?page=${page}&ordering=${encodeURIComponent(ordering)}`),
+
+  comment: (id: number) => request<Comment>(`/comments/${id}`),
 
   thread: (rootId: number, cursor?: string | null) =>
     request<ThreadSlice>(`/comments/${rootId}/thread${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),

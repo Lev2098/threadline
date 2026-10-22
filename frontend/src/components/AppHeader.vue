@@ -2,10 +2,17 @@
 import { ref } from 'vue'
 import { connected } from '@/composables/live'
 import { locale, setLocale, t } from '@/composables/i18n'
+import { onLinkClick } from '@/composables/router'
 import { theme, toggleTheme } from '@/composables/ui'
 
 const emit = defineEmits<{ search: [query: string] }>()
 const query = ref('')
+
+function onTheme(event: MouseEvent): void {
+  // Keyboard activation has no pointer position: reveal from the button itself.
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  toggleTheme(event.clientX ? { x: event.clientX, y: event.clientY } : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+}
 
 function submit(): void {
   emit('search', query.value.trim())
@@ -14,7 +21,7 @@ function submit(): void {
 
 <template>
   <header class="header">
-    <a class="brand" href="/" aria-label="Threadline">
+    <a class="brand" href="/" aria-label="Threadline" @click="onLinkClick($event, '/')">
       <svg viewBox="0 0 32 32" aria-hidden="true">
         <rect width="32" height="32" rx="9" />
         <path d="M10 7v10a5 5 0 0 0 5 5h7" />
@@ -44,7 +51,12 @@ function submit(): void {
         <button type="button" :aria-pressed="locale === 'uk'" @click="setLocale('uk')">UA</button>
         <button type="button" :aria-pressed="locale === 'ru'" @click="setLocale('ru')">RU</button>
       </div>
-      <button type="button" class="icon-btn" :aria-label="t.theme" @click="toggleTheme">
+      <button
+        type="button"
+        class="icon-btn theme-btn"
+        :aria-label="t.theme"
+        @click="onTheme"
+      >
         <svg v-if="theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="4.5" />
           <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
@@ -139,6 +151,18 @@ function submit(): void {
   stroke-width: 2;
   stroke-linecap: round;
 }
+.theme-btn svg {
+  transition: transform 0.5s var(--ease-out);
+}
+.theme-btn:hover svg {
+  transform: rotate(-25deg) scale(1.08);
+}
+.brand svg {
+  transition: transform 0.4s var(--ease-out);
+}
+.brand:hover svg {
+  transform: rotate(-8deg) scale(1.06);
+}
 .live {
   display: inline-flex;
   align-items: center;
@@ -183,7 +207,7 @@ function submit(): void {
 }
 .lang button[aria-pressed='true'] {
   background: var(--signal);
-  color: #fff;
+  color: var(--on-signal);
 }
 @media (max-width: 760px) {
   .header {
@@ -199,7 +223,8 @@ function submit(): void {
     justify-self: end;
   }
   .live {
-    display: none;
+    font-size: 0;
+    gap: 0;
   }
 }
 </style>

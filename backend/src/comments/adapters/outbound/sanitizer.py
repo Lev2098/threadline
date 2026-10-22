@@ -13,7 +13,7 @@ class Nh3Sanitizer:
     def clean(self, html: str) -> str:
         attributes = {tag: set(attrs) for tag, attrs in ALLOWED_TAGS.items()}
         attributes["a"] |= {"target"}
-        return nh3.clean(
+        cleaned = nh3.clean(
             html,
             tags=set(ALLOWED_TAGS),
             attributes=attributes,
@@ -21,3 +21,5 @@ class Nh3Sanitizer:
             link_rel="nofollow noopener noreferrer",
             strip_comments=True,
         )
+        # html5ever serializes U+00A0 as "&nbsp;", which XML (and so XHTML) doesn't define.
+        return cleaned.replace("&nbsp;", "&#160;")

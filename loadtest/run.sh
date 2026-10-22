@@ -5,6 +5,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 COUNT="${1:-1000000}"
 compose() { docker compose -f docker-compose.yml -f docker-compose.loadtest.yml "$@"; }
+# The overlay disables throttles and fixes the captcha answer: always switch the
+# stack back to normal mode on exit, even if the test fails or is interrupted.
+restore_normal_mode() { echo "== restoring normal mode"; docker compose up -d; }
+trap restore_normal_mode EXIT
 
 compose up -d --build
 echo "== seeding ${COUNT} comments"

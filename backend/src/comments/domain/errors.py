@@ -36,6 +36,12 @@ class NotFoundError(DomainError):
     code = "not_found"
 
 
+class ServiceUnavailable(DomainError):
+    """A dependency (e.g. the search engine) is down; the request may be retried."""
+
+    code = "unavailable"
+
+
 class InvalidInput(ValidationError):
     """Several field errors at once, so a form can highlight all of them."""
 

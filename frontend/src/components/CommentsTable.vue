@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import type { Comment, Ordering, SortField } from '@/api/types'
 import { formatDate, t } from '@/composables/i18n'
 import { plainText } from '@/composables/markup'
+import { onLinkClick, threadUrl } from '@/composables/router'
+import { spotlight } from '@/composables/fx'
 import { avatarStyle, initials } from '@/composables/ui'
 import ThreadPanel from './ThreadPanel.vue'
 
@@ -39,7 +41,7 @@ const columns = computed(() => [
 </script>
 
 <template>
-  <div class="table-wrap">
+  <div class="table-wrap" @pointermove="spotlight">
     <table class="roots">
       <thead>
         <tr>
@@ -63,15 +65,14 @@ const columns = computed(() => [
         </tr>
       </thead>
       <tbody>
-        <template v-for="c in items" :key="c.id">
+        <template v-for="(c, i) in items" :key="c.id">
+          <!-- The whole row is clickable for the mouse; keyboard and screen
+               readers use the real toggle button in the last cell. -->
           <tr
             class="row"
+            :style="{ '--i': i }"
             :class="{ open: expanded.has(c.id), fresh: fresh.has(c.id) }"
-            tabindex="0"
-            :aria-expanded="expanded.has(c.id)"
             @click="toggle(c.id)"
-            @keydown.enter.prevent="toggle(c.id)"
-            @keydown.space.prevent="toggle(c.id)"
           >
             <td class="c-author">
               <div class="who">
@@ -83,12 +84,30 @@ const columns = computed(() => [
             <td class="c-email">{{ c.email }}</td>
             <td class="c-date"><time :datetime="c.created_at">{{ formatDate(c.created_at) }}</time></td>
             <td class="c-replies">
+              <a
+                class="open-link"
+                :href="threadUrl(c.id)"
+                :title="t.openThread"
+                :aria-label="t.openThread"
+                @click.stop="onLinkClick($event, threadUrl(c.id))"
+                @keydown.enter.stop
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" /></svg>
+              </a>
               <span class="count" :class="{ zero: !c.replies_count }">{{ t.replies(c.replies_count) }}</span>
-              <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-              <span class="sr-only">{{ expanded.has(c.id) ? t.hideThread : t.showThread }}</span>
+              <button
+                type="button"
+                class="toggle"
+                :aria-expanded="expanded.has(c.id)"
+                :aria-controls="`thread-${c.id}`"
+                :aria-label="`${expanded.has(c.id) ? t.hideThread : t.showThread}: ${c.username}`"
+                @click.stop="toggle(c.id)"
+              >
+                <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
             </td>
           </tr>
-          <tr v-if="expanded.has(c.id)" class="thread-row">
+          <tr v-if="expanded.has(c.id)" :id="`thread-${c.id}`" class="thread-row">
             <td colspan="5"><ThreadPanel :root="c" /></td>
           </tr>
         </template>
@@ -99,8 +118,15 @@ const columns = computed(() => [
 
 <style scoped>
 .table-wrap {
+  position: relative;
+  /* pointer-following highlight, painted under the rows */
+  background-image: radial-gradient(
+    420px circle at var(--mx, -999px) var(--my, -999px),
+    color-mix(in srgb, var(--signal) 9%, transparent),
+    transparent 70%
+  );
   border-radius: var(--radius-l);
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-lift);
   overflow: hidden;
@@ -161,8 +187,23 @@ th i.active.desc {
   width: 9.5rem;
 }
 .c-replies {
-  width: 10.5rem;
+  width: 13rem;
   text-align: right;
+}
+/* Tablet: the excerpt column gives way first; e-mail stays (it is sortable). */
+@media (max-width: 1024px) and (min-width: 761px) {
+  .c-text {
+    display: none;
+  }
+  .c-author {
+    width: 30%;
+  }
+  .c-date {
+    width: 8.5rem;
+  }
+  .c-replies {
+    width: 12rem;
+  }
 }
 td {
   padding: 0.85rem 1rem;
@@ -175,14 +216,40 @@ td {
 .row {
   cursor: pointer;
   transition: background-color 0.2s;
+  animation: row-enter 0.45s var(--ease-out) both;
+  animation-delay: calc(min(var(--i), 12) * 22ms);
+}
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.thread-row td > * {
+  animation: thread-open 0.4s var(--ease-out) both;
+}
+@keyframes thread-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 .row:hover,
 .row.open {
   background: color-mix(in srgb, var(--signal-soft) 55%, transparent);
 }
-.row:focus-visible {
-  outline: 2px solid var(--signal);
-  outline-offset: -2px;
+.toggle {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 0.25rem;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  vertical-align: middle;
+}
+.toggle:hover {
+  background: var(--signal-soft);
 }
 .who {
   display: flex;
@@ -222,7 +289,7 @@ time {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   background: var(--signal-soft);
-  color: var(--signal);
+  color: var(--signal-ink);
   font-size: var(--step--1);
   font-weight: 600;
 }
@@ -231,10 +298,43 @@ time {
   color: var(--muted);
   font-weight: 500;
 }
+.open-link {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 999px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+.open-link svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.row:hover .open-link,
+.row:focus-within .open-link,
+.open-link:focus-visible {
+  opacity: 1;
+}
+.open-link:hover {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+@media (hover: none) {
+  .open-link {
+    opacity: 1;
+  }
+}
 .chev {
   width: 18px;
   height: 18px;
-  margin-left: 0.4rem;
   vertical-align: middle;
   fill: none;
   stroke: var(--muted);
@@ -242,7 +342,7 @@ time {
   stroke-linecap: round;
   transition: transform 0.3s var(--ease-out);
 }
-.open .chev {
+.row.open .chev {
   transform: rotate(180deg);
   stroke: var(--signal);
 }
@@ -276,12 +376,17 @@ time {
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
   }
   thead th {
     border: 0;
     flex: none;
     width: auto;
+    white-space: nowrap;
+    background: transparent;
   }
+
   thead th.c-text,
   thead th.c-replies {
     display: none;
@@ -319,7 +424,7 @@ time {
     text-align: left;
   }
   .thread-row td {
-    padding: 0.5rem 0.75rem 1rem;
+    padding: 0.5rem 0.4rem 1rem;
   }
 }
 </style>

@@ -8,10 +8,15 @@ from comments.application.ports import ProcessedImage
 from comments.domain.attachment import ImageFormat
 from comments.domain.errors import AttachmentError
 
-# Decompression-bomb guard: reject anything above ~40 MP before decoding pixels.
-Image.MAX_IMAGE_PIXELS = 40_000_000
+# Decompression-bomb guards, checked from the header before any pixel is decoded.
+# (Pillow's own MAX_IMAGE_PIXELS only *warns* between 1x and 2x the limit.)
+MAX_PIXELS = 40_000_000
+MAX_GIF_FRAMES = 100
+MAX_GIF_TOTAL_PIXELS = 50_000_000  # frames x width x height
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS * 2
 
-_FORMATS = {"JPEG": ImageFormat.JPEG, "PNG": ImageFormat.PNG, "GIF": ImageFormat.GIF}
+# MPO = multi-picture JPEG produced by many phone cameras; stored as plain JPEG.
+_FORMATS = {"JPEG": ImageFormat.JPEG, "MPO": ImageFormat.JPEG, "PNG": ImageFormat.PNG, "GIF": ImageFormat.GIF}
 
 
 class PillowImageProcessor:
@@ -21,7 +26,12 @@ class PillowImageProcessor:
             fmt = _FORMATS.get(image.format or "")
             if fmt is None:
                 raise AttachmentError("Only JPG, GIF and PNG images are allowed.", field="attachment")
+            if image.width * image.height > MAX_PIXELS:
+                raise AttachmentError("The image is too large (max 40 megapixels).", field="attachment")
             if fmt is ImageFormat.GIF and getattr(image, "is_animated", False):
+                frames = getattr(image, "n_frames", 1)
+                if frames > MAX_GIF_FRAMES or frames * image.width * image.height > MAX_GIF_TOTAL_PIXELS:
+                    raise AttachmentError("The animation is too long or too large.", field="attachment")
                 return self._fit_animated(image, max_width, max_height)
             return self._fit_still(image, fmt, max_width, max_height)
         except (UnidentifiedImageError, Image.DecompressionBombError, OSError, SyntaxError) as exc:
