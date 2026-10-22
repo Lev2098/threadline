@@ -12,12 +12,13 @@ function open(): void {
 }
 
 function kb(size: number): string {
-  return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${Math.max(1, Math.round(size / 1024))} ${t.value.kb}`
 }
 </script>
 
 <template>
-  <button ref="el" type="button" class="thumb" :class="attachment.kind" :aria-label="`${t.openFile}: ${attachment.name}`" @click="open">
+  <button ref="el" type="button" class="thumb" :class="attachment.kind" :title="t.openFile" @click="open">
+    <span class="sr-only">{{ t.openFile }}: </span>
     <img
       v-if="attachment.kind === 'image'"
       :src="attachment.url"

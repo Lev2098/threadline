@@ -4,6 +4,7 @@ export type Locale = 'uk' | 'ru'
 
 const uk = {
   appName: 'Threadline',
+  homeTitle: 'Threadline — обговорення, що ростуть гілками',
   heroTitle: 'Говоримо по суті.',
   heroLead: 'Відповідайте на будь-який коментар — гілки ростуть скільки завгодно глибоко, а нові повідомлення з’являються наживо.',
   statThreads: 'обговорень',
@@ -32,7 +33,9 @@ const uk = {
   next: 'Далі',
   search: 'Пошук',
   searchPlaceholder: 'Пошук у коментарях…',
-  searchResults: (n: number, q: string) => `${n} ${plural(n, 'результат', 'результати', 'результатів')} за «${q}»`,
+  searchResults: (n: number, q: string) =>
+    n >= SEARCH_CAP ? `${formatCount(n)}+ результатів за «${q}»` : `${formatCount(n)} ${plural(n, 'результат', 'результати', 'результатів')} за «${q}»`,
+  searchFailed: 'Пошук тимчасово недоступний. Спробуйте ще раз за хвилину.',
   searchNothing: (q: string) => `За запитом «${q}» нічого не знайдено. Спробуйте інше слово.`,
   closeSearch: 'Закрити пошук',
   composerNew: 'Нове обговорення',
@@ -75,12 +78,39 @@ const uk = {
   quoteLabel: 'Цитата з попереднього коментаря',
   openFile: 'Відкрити файл',
   homepage: 'Домашня сторінка автора',
+  captchaLoadError: 'Не вдалося завантажити картинку. Натисніть «Інша картинка».',
+  backToAll: 'Усі обговорення',
+  toTop: 'Нагору',
+  threadMissing: 'Обговорення не знайдено',
+  permalink: 'Скопіювати посилання на коментар',
+  linkCopied: 'Посилання скопійовано',
+  openThread: 'Відкрити гілку окремою сторінкою',
+  shortcutsTitle: 'Гарячі клавіші',
+  shortcutSearch: 'Пошук',
+  shortcutNew: 'Нове обговорення',
+  shortcutTheme: 'Змінити тему',
+  shortcutHelp: 'Ця довідка',
+  shortcutClose: 'Закрити вікно',
+  errCaptcha: 'Символи не збігаються. Введіть символи з нової картинки.',
+  errAttachment: 'Файл пошкоджений або не є зображенням JPG, GIF чи PNG.',
+  errFileTooBig: 'Файл завеликий: зображення до 10 МБ, текст до 100 КБ.',
+  errParent: 'Коментар, на який ви відповідаєте, недоступний.',
+  errRateLimit: 'Забагато запитів. Зачекайте кілька секунд і спробуйте ще раз.',
+  errServer: 'Сервер тимчасово недоступний. Спробуйте ще раз за хвилину.',
+  errPublish: 'Не вдалося опублікувати. Перевірте з’єднання та спробуйте ще раз.',
+  errLinkUrl: 'Адреса має починатися з https://, http:// або mailto:',
+  insertLink: 'Вставити',
+  kb: 'КБ',
+  captchaAlt: 'Картинка з символами',
+  formatting: 'Форматування',
+  download: 'Завантажити файл',
 }
 
 type Dict = typeof uk
 
 const ru: Dict = {
   appName: 'Threadline',
+  homeTitle: 'Threadline — обсуждения, которые растут ветками',
   heroTitle: 'Говорим по делу.',
   heroLead: 'Отвечайте на любой комментарий — ветки растут сколько угодно глубоко, а новые сообщения появляются вживую.',
   statThreads: 'обсуждений',
@@ -109,7 +139,9 @@ const ru: Dict = {
   next: 'Далее',
   search: 'Поиск',
   searchPlaceholder: 'Поиск по комментариям…',
-  searchResults: (n: number, q: string) => `${n} ${plural(n, 'результат', 'результата', 'результатов')} по «${q}»`,
+  searchResults: (n: number, q: string) =>
+    n >= SEARCH_CAP ? `${formatCount(n)}+ результатов по «${q}»` : `${formatCount(n)} ${plural(n, 'результат', 'результата', 'результатов')} по «${q}»`,
+  searchFailed: 'Поиск временно недоступен. Попробуйте ещё раз через минуту.',
   searchNothing: (q: string) => `По запросу «${q}» ничего не найдено. Попробуйте другое слово.`,
   closeSearch: 'Закрыть поиск',
   composerNew: 'Новое обсуждение',
@@ -152,6 +184,32 @@ const ru: Dict = {
   quoteLabel: 'Цитата из предыдущего комментария',
   openFile: 'Открыть файл',
   homepage: 'Домашняя страница автора',
+  captchaLoadError: 'Не удалось загрузить картинку. Нажмите «Другая картинка».',
+  backToAll: 'Все обсуждения',
+  toTop: 'Наверх',
+  threadMissing: 'Обсуждение не найдено',
+  permalink: 'Скопировать ссылку на комментарий',
+  linkCopied: 'Ссылка скопирована',
+  openThread: 'Открыть ветку отдельной страницей',
+  shortcutsTitle: 'Горячие клавиши',
+  shortcutSearch: 'Поиск',
+  shortcutNew: 'Новое обсуждение',
+  shortcutTheme: 'Сменить тему',
+  shortcutHelp: 'Эта справка',
+  shortcutClose: 'Закрыть окно',
+  errCaptcha: 'Символы не совпадают. Введите символы с новой картинки.',
+  errAttachment: 'Файл повреждён или не является изображением JPG, GIF или PNG.',
+  errFileTooBig: 'Файл слишком большой: изображение до 10 МБ, текст до 100 КБ.',
+  errParent: 'Комментарий, на который вы отвечаете, недоступен.',
+  errRateLimit: 'Слишком много запросов. Подождите несколько секунд и попробуйте снова.',
+  errServer: 'Сервер временно недоступен. Попробуйте ещё раз через минуту.',
+  errPublish: 'Не удалось опубликовать. Проверьте соединение и попробуйте снова.',
+  errLinkUrl: 'Адрес должен начинаться с https://, http:// или mailto:',
+  insertLink: 'Вставить',
+  kb: 'КБ',
+  captchaAlt: 'Картинка с символами',
+  formatting: 'Форматирование',
+  download: 'Скачать файл',
 }
 
 function plural(n: number, one: string, few: string, many: string): string {
@@ -184,6 +242,13 @@ export function setLocale(next: Locale): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Elasticsearch counts hits exactly only up to this number. */
+const SEARCH_CAP = 10_000
+
+export function formatCount(n: number): string {
+  return n.toLocaleString(locale.value === 'uk' ? 'uk-UA' : 'ru-RU')
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>()

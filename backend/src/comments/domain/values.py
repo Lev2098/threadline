@@ -6,25 +6,24 @@ code never re-validates it.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from urllib.parse import urlsplit
 
 from comments.domain.errors import ValidationError
 
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9]+$")
 # Pragmatic RFC 5322 subset: local@domain.tld, no quoted local parts.
+# Local part: dot-atoms only (no leading, trailing or doubled dots).
 _EMAIL_RE = re.compile(
-    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+    r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
 )
-_URL_RE = re.compile(
-    r"^https?://"
-    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}"
-    r"(?::\d{1,5})?"
-    r"(?:[/?#][^\s<>\"']*)?$",
-    re.IGNORECASE,
-)
+_URL_FORBIDDEN_RE = re.compile(r"[\s<>\"'`\\]")
+_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 USERNAME_MAX = 64
 EMAIL_MAX = 254
@@ -73,7 +72,7 @@ class HomePage:
     value: str
 
     def __post_init__(self) -> None:
-        if len(self.value) > URL_MAX or not _URL_RE.fullmatch(self.value):
+        if len(self.value) > URL_MAX or not _is_web_url(self.value):
             raise ValidationError("Home page must be a valid http(s) URL.", field="home_page")
 
     @classmethod
@@ -83,6 +82,46 @@ class HomePage:
 
     def __str__(self) -> str:
         return self.value
+
+
+def _is_web_url(value: str) -> bool:
+    """http(s) URL with a real host: domain (IDN allowed), IPv4/IPv6 or localhost."""
+    if _URL_FORBIDDEN_RE.search(value):
+        return False
+    try:
+        parts = urlsplit(value)
+        port = parts.port  # raises ValueError when out of range
+    except ValueError:
+        return False
+    host = parts.hostname or ""
+    if parts.scheme.lower() not in {"http", "https"} or not host or parts.username or parts.password:
+        return False
+    if port == 0:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    if host == "localhost":
+        return True
+    try:
+        ascii_host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+    labels = ascii_host.rstrip(".").split(".")
+    return len(labels) >= 2 and all(_LABEL_RE.fullmatch(label) for label in labels) and not labels[-1].isdigit()
+
+
+def restore[T](cls: type[T], value: str) -> T:
+    """Rebuild a value object from trusted storage without re-validating.
+
+    Rules may tighten over time; rows stored under old rules must still load
+    instead of breaking every page that contains them.
+    """
+    obj = object.__new__(cls)
+    object.__setattr__(obj, "value", value)
+    return obj
 
 
 @dataclass(frozen=True, slots=True)

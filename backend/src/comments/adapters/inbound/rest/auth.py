@@ -71,7 +71,10 @@ class JWTClientAuthentication(BaseAuthentication):
             return None
         if len(parts) != 2:
             raise AuthenticationFailed("Malformed Authorization header.")
-        token = parts[1].decode()
+        try:
+            token = parts[1].decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise AuthenticationFailed("Malformed Authorization header.") from exc
         return decode_token(token), token
 
     def authenticate_header(self, request: Request) -> str:

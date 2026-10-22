@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import type { Attachment, Comment } from '@/api/types'
+import { revealFrom } from './fx'
 
 /* ---------- theme ---------- */
 export type Theme = 'light' | 'dark'
@@ -17,14 +18,20 @@ function initialTheme(): Theme {
 export const theme = ref<Theme>(initialTheme())
 document.documentElement.dataset.theme = theme.value
 
-export function toggleTheme(): void {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  document.documentElement.dataset.theme = theme.value
-  try {
-    localStorage.setItem('threadline.theme', theme.value)
-  } catch {
-    /* ignore */
+export function toggleTheme(origin?: { x: number; y: number }): void {
+  const apply = () => {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    document.documentElement.dataset.theme = theme.value
   }
+  const { x, y } = origin ?? { x: innerWidth - 40, y: 32 }
+  revealFrom(x, y, () => {
+    apply()
+    try {
+      localStorage.setItem('threadline.theme', theme.value)
+    } catch {
+      /* ignore */
+    }
+  })
 }
 
 /* ---------- composer ---------- */
@@ -72,3 +79,29 @@ export function initials(name: string): string {
 }
 
 export const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/* ---------- viewport ---------- */
+const compactQuery = matchMedia('(max-width: 640px)')
+/** Phones: thread indentation stops early so deep replies stay readable. */
+export const compact = ref(compactQuery.matches)
+compactQuery.addEventListener('change', (e) => (compact.value = e.matches))
+
+/* ---------- modal dialogs ---------- */
+/**
+ * Makes the page behind a dialog inert (no Tab, no screen reader, no scroll)
+ * and returns a function that undoes it and puts focus back where it was.
+ */
+export function enterModal(): () => void {
+  const opener = document.activeElement as HTMLElement | null
+  const app = document.getElementById('app')
+  app?.setAttribute('inert', '')
+  const overflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  return () => {
+    app?.removeAttribute('inert')
+    document.body.style.overflow = overflow
+    if (opener?.isConnected) opener.focus()
+  }
+}
+
+export const isMac = /Mac|iPhone|iPad/.test(navigator.platform)

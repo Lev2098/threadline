@@ -70,23 +70,29 @@ sed -i "s|^RABBITMQ_PASSWORD=.*|RABBITMQ_PASSWORD=$(openssl rand -hex 16)|" .env
 nano .env
 ```
 
-Отредактируйте в `.env`:
+Отредактируйте в `.env` (и раскомментируйте эти строки):
 
 ```dotenv
 DJANGO_ALLOWED_HOSTS=comments.example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://comments.example.com
 DOMAIN=comments.example.com
+SITE_URL=https://comments.example.com
+BEHIND_TLS_PROXY=true
+SECURE_COOKIES=true
+COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
 ```
 
-> **Без домена** (только IP): `DJANGO_ALLOWED_HOSTS=<IP>`, `DJANGO_CSRF_TRUSTED_ORIGINS=http://<IP>:8080`, а на шаге 6 запускайте без `docker-compose.prod.yml`. Сайт будет на `http://<IP>:8080`; откройте порт командой `ufw allow 8080/tcp`.
+`COMPOSE_FILE` делает продакшн-оверлей (Caddy + HTTPS, закрытые порты приложения) частью **каждой** команды `docker compose …` на этом сервере. Без него `docker compose up -d` при обновлении или масштабировании тихо вернул бы стек в локальный режим с открытым портом 8080.
+
+> **Без домена** (только IP): `DJANGO_ALLOWED_HOSTS=<IP>`, `DJANGO_CSRF_TRUSTED_ORIGINS=http://<IP>:8080`, строки `DOMAIN`, `BEHIND_TLS_PROXY`, `SECURE_COOKIES` и `COMPOSE_FILE` не добавляйте. Сайт будет на `http://<IP>:8080`.
+
+> **Docker и ufw.** Порты, которые публикует Docker, обходят правила ufw. Поэтому продакшн-оверлей не публикует ничего, кроме 80/443 (Caddy), а RabbitMQ UI слушает только `127.0.0.1` (доступ через `ssh -L 15672:localhost:15672`).
+
+> **Подсеть.** Стек использует сеть `172.28.0.0/24` (Caddy имеет фиксированный адрес `172.28.0.250`, только ему nginx доверяет `X-Forwarded-For`). Если на сервере эта подсеть занята, задайте в `.env` `COMPOSE_SUBNET` и `CADDY_IP`.
 
 ## 6. Запуск
 
 ```bash
-# с доменом и автоматическим HTTPS (Caddy + Let's Encrypt):
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-# или без домена:
 docker compose up -d --build
 ```
 
@@ -95,7 +101,7 @@ docker compose up -d --build
 ## 7. Проверка
 
 ```bash
-docker compose ps                    # все сервисы running (healthy), migrate: exited (0)
+docker compose ps -a                 # все сервисы running (healthy), migrate: exited (0)
 curl -s https://comments.example.com/readyz     # {"status": "ready"}
 ```
 
@@ -114,7 +120,7 @@ docker compose exec backend python manage.py search_reindex
 ```bash
 cd ~/threadline
 git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose up -d --build        # COMPOSE_FILE из .env добавляет продакшн-оверлей
 ```
 
 Миграции применятся автоматически (сервис `migrate`). Данные в томах (`pgdata`, `media`, `esdata`) сохраняются.
@@ -129,16 +135,22 @@ docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRE
 docker run --rm -v threadline_media:/media -v "$PWD":/out alpine tar czf /out/media_$(date +%F).tgz -C /media .
 ```
 
-Ежедневный бэкап в 03:00 (`crontab -e`):
+Ежедневный бэкап в 03:00 с ротацией 14 дней. Сначала создайте каталог: `mkdir -p ~/backups`. Затем `crontab -e`:
 
 ```cron
 0 3 * * * cd /home/deploy/threadline && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > /home/deploy/backups/db_$(date +\%F).dump
+5 3 * * * docker run --rm -v threadline_media:/media -v /home/deploy/backups:/out alpine tar czf /out/media_$(date +\%F).tgz -C /media .
+30 3 * * * find /home/deploy/backups -type f -mtime +14 -delete
 ```
 
-Восстановление:
+Восстановление (приложение на время восстановления останавливается):
 
 ```bash
-docker compose exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean' < backup_2026-10-22.dump
+docker compose stop backend realtime worker
+docker compose exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < backup_2026-10-22.dump
+docker run --rm -v threadline_media:/media -v "$PWD":/in alpine tar xzf /in/media_2026-10-22.tgz -C /media
+docker compose start backend realtime worker
+docker compose exec backend python manage.py search_reindex
 ```
 
 Индекс Elasticsearch бэкапить не нужно: его можно восстановить из БД командой `search_reindex`.
@@ -172,3 +184,7 @@ docker compose restart frontend   # nginx перечитывает DNS и бал
 ```
 
 Стратегия для нескольких серверов описана в [scaling.md](scaling.md).
+
+## 13. Поисковые системы
+
+Подключите Google Search Console и отправьте `sitemap.xml`. Пошагово: [seo.md](seo.md#после-деплоя-google-search-console).

@@ -131,6 +131,14 @@ class PreviewView(APIView):
         return Response({"html": container().preview_comment(body.validated_data["text"])})
 
 
+class CommentDetailView(APIView):
+    throttle_scope = "read"
+
+    @extend_schema(responses=s.CommentOut, summary="One comment by id (used for permalinks)")
+    def get(self, request: Request, comment_id: int) -> Response:
+        return Response(comment_to_dict(container().get_comment(comment_id)))
+
+
 class ThreadView(APIView):
     throttle_scope = "read"
 
@@ -161,10 +169,6 @@ class SearchView(APIView):
         params.is_valid(raise_exception=True)
         page = container().search_comments(params.validated_data["q"], params.validated_data["page"])
         return Response(page_payload(page))
-
-
-def healthz(request: HttpRequest) -> JsonResponse:
-    return JsonResponse({"status": "ok"})
 
 
 def readyz(request: HttpRequest) -> JsonResponse:

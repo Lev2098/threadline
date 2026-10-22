@@ -15,8 +15,13 @@ x-backend: &backend
     CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-comments}:${RABBITMQ_PASSWORD:-comments}@rabbitmq:5672//
     ELASTICSEARCH_URL: http://elasticsearch:9200
     TRUST_PROXY_HEADERS: "true"
+    # Built SPA shell for server-rendered pages (SEO), served by the edge.
+    SPA_SHELL_URL: http://frontend/index.html
   volumes:
     - media:/app/media
+  # Longer than gunicorn/uvicorn/celery graceful timeouts (20 s), so in-flight
+  # requests and tasks finish on deploy instead of being SIGKILLed.
+  stop_grace_period: 30s
   restart: unless-stopped
 
 services:
@@ -152,6 +157,14 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+
+# Fixed subnet so the production overlay can name Caddy's address as the only
+# proxy nginx trusts for X-Forwarded-For (see docker-compose.prod.yml).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${COMPOSE_SUBNET:-172.28.0.0/24}
 
 volumes:
   pgdata:

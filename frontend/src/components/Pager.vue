@@ -12,9 +12,12 @@ const items = computed<(number | '…')[]>(() => {
   const out: (number | '…')[] = [1]
   const from = Math.max(2, Math.min(page - 2, pages - 6))
   const to = Math.min(pages - 1, Math.max(page + 2, 7))
-  if (from > 2) out.push('…')
+  // An ellipsis standing for exactly one page is replaced by that page.
+  if (from === 3) out.push(2)
+  else if (from > 3) out.push('…')
   for (let i = from; i <= to; i++) out.push(i)
-  if (to < pages - 1) out.push('…')
+  if (to === pages - 2) out.push(pages - 1)
+  else if (to < pages - 2) out.push('…')
   out.push(pages)
   return out
 })

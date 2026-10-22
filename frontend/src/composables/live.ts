@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { ensureToken } from '@/api/client'
+import { ensureToken, resetToken } from '@/api/client'
 import type { Comment } from '@/api/types'
 
 type Listener = (comment: Comment) => void
@@ -39,13 +39,7 @@ export async function connectLive(): Promise<void> {
   socket.onclose = (event) => {
     connected.value = false
     window.clearInterval(heartbeat)
-    if (event.code === 4401) {
-      try {
-        localStorage.removeItem('threadline.token')
-      } catch {
-        /* ignore */
-      }
-    }
+    if (event.code === 4401) resetToken() // expired token: reconnect with a fresh one
     scheduleReconnect()
   }
 }

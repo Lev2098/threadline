@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '@/api/client'
-import type { Comment, CommentPage, Ordering } from '@/api/types'
-import { t } from '@/composables/i18n'
+import { ApiError, type Comment, type CommentPage, type Ordering } from '@/api/types'
+import { formatCount, t } from '@/composables/i18n'
+import { setHead } from '@/composables/head'
 import { connectLive, onCommentPosted } from '@/composables/live'
+import { route, takeInitial } from '@/composables/router'
 import { openComposer, toasts } from '@/composables/ui'
 import AppHeader from './components/AppHeader.vue'
 import CommentNode from './components/CommentNode.vue'
@@ -11,6 +13,9 @@ import CommentsTable from './components/CommentsTable.vue'
 import Composer from './components/Composer.vue'
 import Lightbox from './components/Lightbox.vue'
 import Pager from './components/Pager.vue'
+import Shortcuts from './components/Shortcuts.vue'
+import ThreadPage from './components/ThreadPage.vue'
+import { useCountUp } from '@/composables/fx'
 
 const VALID_ORDERINGS: Ordering[] = ['-created_at', 'created_at', 'username', '-username', 'email', '-email']
 
@@ -23,7 +28,26 @@ const state = reactive({
 })
 const fresh = ref(new Set<number>())
 const pending = ref<Comment[]>([])
-const search = reactive({ query: '', data: null as CommentPage | null, loading: false })
+const search = reactive({ query: '', page: 1, data: null as CommentPage | null, loading: false, failed: false })
+// Responses can arrive out of order (slow sort, quick re-sort): only the latest may render.
+let listSeq = 0
+let searchSeq = 0
+
+const { value: threadsShown, to: countThreadsTo } = useCountUp()
+watch(
+  () => state.data?.total,
+  (total) => total !== undefined && countThreadsTo(total),
+)
+const heroWords = computed(() => t.value.heroTitle.split(' '))
+
+const showTop = ref(false)
+function onScroll(): void {
+  showTop.value = window.scrollY > 1200
+}
+function toTop(): void {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  document.getElementById('search-input')?.focus({ preventScroll: true })
+}
 
 const isLiveView = computed(() => state.page === 1 && state.ordering === '-created_at')
 
@@ -35,25 +59,45 @@ function readUrl(): void {
   state.ordering = ordering && VALID_ORDERINGS.includes(ordering) ? ordering : '-created_at'
 }
 
-function writeUrl(): void {
+function writeUrl(replace = false): void {
   const params = new URLSearchParams()
   if (state.page > 1) params.set('page', String(state.page))
   if (state.ordering !== '-created_at') params.set('ordering', state.ordering)
   const qs = params.toString()
-  history.pushState(null, '', qs ? `?${qs}` : location.pathname)
+  history[replace ? 'replaceState' : 'pushState'](null, '', qs ? `?${qs}` : location.pathname)
 }
 
 async function load(): Promise<void> {
+  const embedded = takeInitial<{ page: CommentPage; ordering: Ordering }>('home')
+  if (embedded && embedded.ordering === state.ordering && embedded.page.page === state.page) {
+    // Server-rendered first page: data is already in the HTML, no request needed.
+    state.data = embedded.page
+    state.loading = false
+    return
+  }
+  const seq = ++listSeq
   state.loading = true
   state.failed = false
   try {
-    state.data = await api.listComments(state.page, state.ordering)
-    state.page = state.data.page
+    const data = await api.listComments(state.page, state.ordering)
+    if (seq !== listSeq) return
+    state.data = data
+    if (state.page !== data.page) {
+      state.page = data.page // the server clamps pages past the end
+      writeUrl(true)
+    }
     pending.value = []
-  } catch {
+  } catch (e) {
+    if (seq !== listSeq) return
+    if (e instanceof ApiError && e.status === 400 && state.page !== 1) {
+      // A page number the API refuses (e.g. hand-edited URL): start over at page 1.
+      state.page = 1
+      writeUrl(true)
+      return load()
+    }
     state.failed = true
   } finally {
-    state.loading = false
+    if (seq === listSeq) state.loading = false
   }
 }
 
@@ -110,26 +154,61 @@ function showPending(): void {
   }
 }
 
-async function runSearch(query: string): Promise<void> {
+async function runSearch(query: string, page = 1): Promise<void> {
+  const seq = ++searchSeq
+  if (query !== search.query) search.data = null // never show old results under a new query
   search.query = query
+  search.page = page
+  search.failed = false
   if (!query) {
-    search.data = null
+    search.loading = false
     return
   }
   search.loading = true
   try {
-    search.data = await api.search(query)
+    const data = await api.search(query, page)
+    if (seq === searchSeq) search.data = data
+  } catch {
+    if (seq === searchSeq) search.failed = true
   } finally {
-    search.loading = false
+    if (seq === searchSeq) search.loading = false
   }
 }
 
-onMounted(() => {
+function closeSearch(): void {
+  runSearch('')
+  document.getElementById('search-input')?.focus()
+}
+
+const searchHeading = computed(() => {
+  if (search.loading && !search.data) return t.value.loading
+  if (search.failed) return t.value.searchFailed
+  if (search.data?.total) return t.value.searchResults(search.data.total, search.query)
+  return t.value.searchNothing(search.query)
+})
+
+function enterHome(): void {
+  setHead(t.value.homeTitle, t.value.heroLead)
   readUrl()
   load()
+  const q = new URLSearchParams(location.search).get('q')
+  if (q) runSearch(q) // e.g. from Google's sitelinks search box
+}
+
+watch(
+  () => route.value.name,
+  (name) => {
+    if (name === 'home') enterHome()
+  },
+)
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  if (route.value.name === 'home') enterHome()
   connectLive()
   onCommentPosted(onLive)
   window.addEventListener('popstate', () => {
+    if (route.value.name !== 'home') return
     readUrl()
     load()
   })
@@ -139,7 +218,8 @@ onMounted(() => {
 <template>
   <AppHeader @search="runSearch" />
 
-  <main class="page">
+  <ThreadPage v-if="route.name === 'thread'" :id="route.id" />
+  <main v-else class="page">
     <section class="hero" aria-labelledby="hero-title">
       <svg class="hero-thread" viewBox="0 0 120 220" aria-hidden="true">
         <path d="M20 0v80a28 28 0 0 0 28 28h44" />
@@ -148,28 +228,39 @@ onMounted(() => {
         <circle cx="100" cy="192" r="7" class="live-dot" />
       </svg>
       <div class="hero-copy">
-        <h1 id="hero-title">{{ t.heroTitle }}</h1>
+        <h1 id="hero-title" :aria-label="t.heroTitle">
+          <span v-for="(word, i) in heroWords" :key="`${word}-${i}`" class="word" :style="{ '--i': i }" aria-hidden="true"
+            >{{ word }}</span
+          >
+        </h1>
         <p>{{ t.heroLead }}</p>
         <div class="hero-actions">
           <button type="button" class="btn btn-primary" @click="openComposer()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             {{ t.startDiscussion }}
           </button>
-          <span v-if="state.data" class="stat"><b>{{ state.data.total.toLocaleString() }}</b> {{ t.statThreads }}</span>
+          <span v-if="state.data" class="stat"><b class="count-up"
+            ><span aria-hidden="true">{{ formatCount(threadsShown) }}</span
+            ><span class="reserve">{{ formatCount(state.data.total) }}</span></b
+          > {{ t.statThreads }}</span>
         </div>
       </div>
     </section>
 
-    <section v-if="search.query" class="search-results" aria-live="polite">
+    <section v-if="search.query" class="search-results" aria-live="polite" :aria-busy="search.loading">
       <header class="results-head">
-        <h2>
-          {{ search.data && search.data.total ? t.searchResults(search.data.total, search.query) : search.loading ? t.loading : t.searchNothing(search.query) }}
-        </h2>
-        <button type="button" class="btn btn-ghost" @click="runSearch('')">{{ t.closeSearch }}</button>
+        <h2>{{ searchHeading }}</h2>
+        <div class="results-actions">
+          <button v-if="search.failed" type="button" class="btn btn-primary" @click="runSearch(search.query, search.page)">
+            {{ t.retry }}
+          </button>
+          <button type="button" class="btn btn-ghost" @click="closeSearch">{{ t.closeSearch }}</button>
+        </div>
       </header>
-      <div class="results-list">
+      <div class="results-list" :class="{ dim: search.loading }">
         <CommentNode v-for="c in search.data?.items ?? []" :key="c.id" :node="{ comment: c, children: [] }" />
       </div>
+      <Pager v-if="search.data" :page="search.data.page" :pages="search.data.pages" @go="(p) => runSearch(search.query, p)" />
     </section>
 
     <section id="discussions" class="discussions" :aria-busy="state.loading">
@@ -197,6 +288,13 @@ onMounted(() => {
 
   <Composer />
   <Lightbox />
+  <Shortcuts />
+
+  <Transition name="fade-up">
+    <button v-if="showTop" type="button" class="to-top icon-btn" :aria-label="t.toTop" @click="toTop">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+    </button>
+  </Transition>
 
   <div class="toasts" role="status" aria-live="polite">
     <TransitionGroup name="toast">
@@ -260,6 +358,48 @@ onMounted(() => {
     transform: scale(1);
   }
 }
+.word {
+  display: inline-block;
+  /* trailing spaces collapse inside inline-blocks, so words are spaced by margin */
+  margin-right: 0.26em;
+  animation: word-in 0.7s var(--ease-out) both;
+  animation-delay: calc(0.15s + var(--i) * 0.09s);
+}
+/* No opacity fade: the heading is the page's LCP element, and an invisible
+   element isn't "painted" until the fade ends. Blur-to-sharp reads the same. */
+@keyframes word-in {
+  from {
+    transform: translateY(0.35em) rotate(2deg);
+    filter: blur(8px);
+  }
+}
+.to-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  box-shadow: var(--shadow-lift);
+}
+.to-top svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.25s, transform 0.3s var(--ease-out);
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.word:last-child {
+  margin-right: 0;
+}
 .hero h1 {
   margin: 0 0 1rem;
   font-family: var(--font-display);
@@ -295,6 +435,17 @@ onMounted(() => {
 }
 .stat {
   color: var(--muted);
+}
+/* the animated number sits on top of the final one, which reserves the width */
+.count-up {
+  display: inline-grid;
+}
+.count-up > span {
+  grid-area: 1 / 1;
+  text-align: right;
+}
+.count-up .reserve {
+  color: transparent; /* reserves width and is what screen readers read */
 }
 .stat b {
   font-family: var(--font-display);
@@ -387,6 +538,10 @@ onMounted(() => {
   gap: 1rem;
   margin-bottom: 1rem;
 }
+.results-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 .results-head h2 {
   margin: 0;
   font-family: var(--font-display);
@@ -429,7 +584,7 @@ onMounted(() => {
 }
 .toast.error {
   background: var(--rose);
-  color: #fff;
+  color: var(--paper);
 }
 .toast-enter-active,
 .toast-leave-active {
