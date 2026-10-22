@@ -71,12 +71,16 @@ function sort(ordering: Ordering): void {
   load()
 }
 
+// The author's own comment arrives twice: announced locally and echoed by the socket.
+const seenLive = new Set<number>()
+
 /** Live roots: slide straight into the default view, otherwise wait behind a pill. */
 function onLive(comment: Comment): void {
   const data = state.data
-  if (!data) return
+  if (!data || seenLive.has(comment.id)) return
+  seenLive.add(comment.id)
   if (comment.parent_id === null) {
-    if (data.items.some((c) => c.id === comment.id) || pending.value.some((c) => c.id === comment.id)) return
+    if (data.items.some((c) => c.id === comment.id)) return
     if (isLiveView.value) {
       reveal([comment])
     } else {
