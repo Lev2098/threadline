@@ -12,6 +12,9 @@
 --     table; MySQL has none, so the root indexes below cover all rows.
 --   * `path` is TEXT; MySQL needs a prefix length to index it.
 --   * `ip` is INET in PostgreSQL, VARCHAR(39) here.
+--   * ON DELETE CASCADE is shown to document intent; in the application,
+--     cascades are done by Django's ORM, and PostgreSQL's FKs have no
+--     DB-level cascade. (InnoDB would also stop cascading after 15 levels.)
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS `threadline` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
