@@ -53,7 +53,7 @@ docker --version && docker compose version
 ## 4. Код
 
 ```bash
-git clone <repo-url> threadline
+git clone https://github.com/Lev2098/threadline.git threadline
 cd threadline
 ```
 
