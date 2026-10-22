@@ -55,9 +55,11 @@ class Visitor(HttpUser):
     @tag("read")
     @task(5)
     def deep_page(self) -> None:
-        # Uncached deep OFFSET: exercises the deferred-join index path.
+        # Uncached deep OFFSET in any ordering: exercises the deferred join over
+        # the partial (index-only) indexes.
         page = random.randint(1, self.pages)
-        self.client.get(f"/api/v1/comments?page={page}", name="GET /comments?page=deep")
+        ordering = random.choice(ORDERINGS)
+        self.client.get(f"/api/v1/comments?ordering={ordering}&page={page}", name="GET /comments?page=deep")
 
     @tag("read")
     @task(25)
@@ -97,3 +99,4 @@ def assert_slo(environment, **_kwargs) -> None:  # noqa: ANN001
         environment.process_exit_code = 1
     else:
         print(f"SLO OK: fail_ratio={stats.fail_ratio:.2%} p95={p95}ms rps={stats.total_rps:.0f}")
+        environment.process_exit_code = 0

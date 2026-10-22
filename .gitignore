@@ -23,7 +23,7 @@ frontend/dist/
 /media/
 /backend/staticfiles/
 *.sqlite3
-loadtest/reports/
+loadtest/reports/*.csv
 
 # Task brief (not part of the repo)
 /*.pdf

@@ -11,6 +11,8 @@ services:
     environment:
       LOADTEST_MODE: "true"
       WEB_CONCURRENCY: "4"
+      # Locust calls Django directly by its service name.
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
 
   worker:
     environment:
