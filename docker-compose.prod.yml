@@ -1,0 +1,36 @@
+# Production overlay: adds Caddy with automatic HTTPS on ports 80/443 and stops
+# publishing the app port and RabbitMQ UI to the outside world.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend: { condition: service_healthy }
+    restart: unless-stopped
+
+  frontend:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  backend:
+    environment:
+      BEHIND_TLS_PROXY: "true"
+      SECURE_COOKIES: "true"
+
+volumes:
+  caddy_data:
+  caddy_config:

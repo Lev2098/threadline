@@ -19,9 +19,12 @@ frontend/dist/
 
 # Env & runtime
 .env
-media/
-staticfiles/
-loadtest/reports/
+/backend/media/
+/media/
+/backend/staticfiles/
+*.sqlite3
+loadtest/reports/*.csv
 
 # Task brief (not part of the repo)
 /*.pdf
+*.egg-info/
