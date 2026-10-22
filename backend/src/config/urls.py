@@ -6,16 +6,21 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from strawberry.django.views import GraphQLView
 
 from comments.adapters.inbound.graphql.schema import schema
-from comments.adapters.inbound.rest.views import healthz, readyz
+from comments.adapters.inbound.rest.views import readyz
+
+handler404 = "comments.adapters.inbound.rest.errors.json_not_found"
+handler500 = "comments.adapters.inbound.rest.errors.json_server_error"
 
 urlpatterns = [
     path("api/v1/", include("comments.adapters.inbound.rest.urls")),
     path("api/schema", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
     # Read-only queries + preview; no cookie auth, so CSRF does not apply.
-    path("graphql", csrf_exempt(GraphQLView.as_view(schema=schema, graphql_ide="graphiql"))),
+    path(
+        "graphql",
+        csrf_exempt(GraphQLView.as_view(schema=schema, graphql_ide="graphiql" if settings.DEBUG else None)),
+    ),
     path("admin/", admin.site.urls),
-    path("healthz", healthz),
     path("readyz", readyz),
 ]
 

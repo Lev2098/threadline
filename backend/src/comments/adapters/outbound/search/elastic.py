@@ -4,9 +4,11 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from elasticsearch import Elasticsearch, NotFoundError, helpers
+from elastic_transport import TransportError
+from elasticsearch import ApiError, Elasticsearch, NotFoundError, helpers
 
 from comments.domain.comment import Comment
+from comments.domain.errors import ServiceUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -47,8 +49,13 @@ def _document(comment: Comment) -> dict[str, Any]:
 
 
 class ElasticsearchSearchIndex:
-    def __init__(self, client: Elasticsearch, index: str) -> None:
+    """``client`` serves writes (patient: workers retry anyway); ``search_client``
+    serves user-facing reads and fails fast, so an outage costs a request a
+    second instead of tying up a web thread for 15."""
+
+    def __init__(self, client: Elasticsearch, index: str, search_client: Elasticsearch | None = None) -> None:
         self._client = client
+        self._search_client = search_client or client
         self._index = index
 
     def ensure_index(self) -> bool:
@@ -67,7 +74,7 @@ class ElasticsearchSearchIndex:
 
     def search(self, query: str, offset: int, limit: int) -> tuple[list[int], int]:
         try:
-            response = self._client.search(
+            response = self._search_client.search(
                 index=self._index,
                 query={
                     "multi_match": {
@@ -86,5 +93,8 @@ class ElasticsearchSearchIndex:
         except NotFoundError:
             log.warning("Search index %s is missing; run `manage.py search_reindex`", self._index)
             return [], 0
+        except (TransportError, ApiError) as exc:
+            log.warning("Search unavailable: %s", exc)
+            raise ServiceUnavailable("Search is temporarily unavailable. Please try again later.") from exc
         hits = response["hits"]
         return [int(hit["_id"]) for hit in hits["hits"]], int(hits["total"]["value"])
