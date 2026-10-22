@@ -72,7 +72,7 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **opts: Any) -> None:
         rng = random.Random(opts["seed"])  # noqa: S311 - test data, not crypto
         total, batch = opts["count"], opts["batch"]
-        roots_per_batch = max(1, int(batch * opts["root_ratio"]))
+        root_ratio = opts["root_ratio"]
         next_id = (CommentRecord.objects.aggregate(m=Max("id"))["m"] or 0) + 1
         start_time = timezone.now() - timedelta(days=365)
         step = timedelta(days=365) / max(total, 1)
@@ -87,7 +87,8 @@ class Command(BaseCommand):
 
             for i in range(size):
                 ts = start_time + step * (created + i)
-                if i < min(roots_per_batch, size) or not roots:
+                # Roots and replies interleave over time, like real traffic.
+                if not roots or rng.random() < root_ratio:
                     record = self._row(rng, next_id, None, ts)
                     record.root_id, record.path = next_id, child_path("", next_id)
                     roots.append(record)

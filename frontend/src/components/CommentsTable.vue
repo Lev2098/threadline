@@ -149,13 +149,13 @@ th i.active.desc {
   transform: rotate(180deg);
 }
 .c-author {
-  width: 22%;
+  width: 19%;
 }
 .c-text {
   width: auto;
 }
 .c-email {
-  width: 22%;
+  width: 17%;
 }
 .c-date {
   width: 9.5rem;

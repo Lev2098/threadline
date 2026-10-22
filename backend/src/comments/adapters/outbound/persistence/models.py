@@ -44,8 +44,13 @@ class CommentRecord(models.Model):
             # includes id as a tiebreaker, so pagination is deterministic and
             # ORDER BY ... LIMIT is an index scan with no sort step.
             models.Index(fields=["-created_at", "-id"], condition=ROOTS, name="comments_root_created_idx"),
-            models.Index(Lower("username"), "id", condition=ROOTS, name="comments_root_username_idx"),
-            models.Index(Lower("email"), "id", condition=ROOTS, name="comments_root_email_idx"),
+            # INCLUDE the raw column: PostgreSQL only plans an index-only scan for
+            # an expression index when the referenced column is in the index too.
+            # Without it a deep OFFSET by username took 1.7 s (heap fetch per row).
+            models.Index(
+                Lower("username"), "id", condition=ROOTS, include=["username"], name="comments_root_username_idx"
+            ),
+            models.Index(Lower("email"), "id", condition=ROOTS, include=["email"], name="comments_root_email_idx"),
             # Whole thread in depth-first order: WHERE root_id = ? ORDER BY path.
             models.Index(fields=["root", "path"], name="comments_thread_path_idx"),
             models.Index(fields=["parent"], name="comments_parent_idx"),
