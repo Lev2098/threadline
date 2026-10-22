@@ -14,7 +14,8 @@ class PostCommentSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=64, allow_blank=True, trim_whitespace=True)
     email = serializers.CharField(max_length=254, allow_blank=True)
     home_page = serializers.CharField(max_length=2048, required=False, allow_blank=True, default="")
-    text = serializers.CharField(max_length=5000, allow_blank=True, trim_whitespace=False)
+    # Generous cap only against abuse; the domain enforces 5000 after normalizing CRLF.
+    text = serializers.CharField(max_length=10_000, allow_blank=True, trim_whitespace=False)
     captcha_key = serializers.CharField(max_length=64)
     captcha = serializers.CharField(max_length=16, allow_blank=True)
     parent_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
@@ -22,7 +23,7 @@ class PostCommentSerializer(serializers.Serializer):
 
 
 class PreviewSerializer(serializers.Serializer):
-    text = serializers.CharField(max_length=5000, allow_blank=True, trim_whitespace=False)
+    text = serializers.CharField(max_length=10_000, allow_blank=True, trim_whitespace=False)
 
 
 class ListQuerySerializer(serializers.Serializer):
@@ -35,7 +36,8 @@ class ListQuerySerializer(serializers.Serializer):
 
 
 class ThreadQuerySerializer(serializers.Serializer):
-    cursor = serializers.RegexField(r"^[0-9.]{1,4000}$", required=False, allow_blank=True)
+    # Shape and depth are validated by the use case (comments.domain.comment.is_valid_path).
+    cursor = serializers.CharField(max_length=1200, required=False, allow_blank=True)
     limit = serializers.IntegerField(required=False, default=500, min_value=1, max_value=500)
 
 

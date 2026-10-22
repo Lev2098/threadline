@@ -20,6 +20,7 @@ from comments.domain.values import (
     SortDirection,
     SortField,
     UserName,
+    restore,
 )
 
 
@@ -28,7 +29,9 @@ class DjangoTransactions:
         return transaction.atomic()
 
     def on_commit(self, callback: Callable[[], None]) -> None:
-        transaction.on_commit(callback)
+        # robust: a failing side effect is logged, never turned into an error
+        # response for data that is already committed.
+        transaction.on_commit(callback, robust=True)
 
 
 class DjangoCommentRepository:
@@ -141,10 +144,12 @@ def _to_domain(record: CommentRecord) -> Comment:
         parent_id=record.parent_id,
         root_id=record.root_id,
         path=record.path,
+        # Trusted storage: rebuilt without re-validation, so one legacy or
+        # admin-edited row can't turn whole pages into errors.
         author=Author(
-            UserName(record.username),
-            Email(record.email),
-            HomePage(record.home_page) if record.home_page else None,
+            restore(UserName, record.username),
+            restore(Email, record.email),
+            restore(HomePage, record.home_page) if record.home_page else None,
         ),
         # Stored HTML was produced by CommentText.parse; it is not re-parsed on read.
         text=CommentText(source=record.text_source, html=record.text_html),

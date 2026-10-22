@@ -73,7 +73,7 @@ class Command(BaseCommand):
         rng = random.Random(opts["seed"])  # noqa: S311 - test data, not crypto
         total, batch = opts["count"], opts["batch"]
         root_ratio = opts["root_ratio"]
-        next_id = (CommentRecord.objects.aggregate(m=Max("id"))["m"] or 0) + 1
+        next_id = self._reserve_ids(total)
         start_time = timezone.now() - timedelta(days=365)
         step = timedelta(days=365) / max(total, 1)
         created = 0
@@ -109,8 +109,9 @@ class Command(BaseCommand):
             rate = created / max(time.monotonic() - started, 1e-6)
             self.stdout.write(f"  {created:>9,} / {total:,}  ({rate:,.0f} rows/s)")
 
-        self._reset_sequence()
-        cache.clear()
+        # Invalidate cached root pages/count without FLUSHDB: the same Redis
+        # holds live WebSocket groups, pending captchas and throttle counters.
+        cache.delete_many(["roots:ver", "roots:count"])
         self.stdout.write(self.style.SUCCESS(f"Seeded {created:,} comments."))
 
     @staticmethod
@@ -136,10 +137,16 @@ class Command(BaseCommand):
         )
 
     @staticmethod
-    def _reset_sequence() -> None:
+    def _reserve_ids(count: int) -> int:
+        """Move the id sequence past the block we insert, *before* inserting,
+        so live traffic during seeding can't collide with our explicit ids."""
         if connection.vendor != "postgresql":
-            return
+            return (CommentRecord.objects.aggregate(m=Max("id"))["m"] or 0) + 1
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT setval(pg_get_serial_sequence('comments', 'id'), (SELECT COALESCE(MAX(id), 1) FROM comments))"
+                "SELECT setval(pg_get_serial_sequence('comments', 'id'),"
+                " GREATEST(nextval(pg_get_serial_sequence('comments', 'id')),"
+                " (SELECT COALESCE(MAX(id), 0) + 1 FROM comments)) + %s) - %s",
+                [count, count],
             )
+            return int(cursor.fetchone()[0])
