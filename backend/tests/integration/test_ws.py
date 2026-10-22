@@ -51,10 +51,12 @@ def test_new_comment_is_pushed_to_websocket(monkeypatch: pytest.MonkeyPatch, set
 
 
 def test_websocket_rejects_missing_token() -> None:
-    async def scenario() -> tuple[bool, int | None]:
+    # Accepted, then closed with 4401, so the browser sees the code and can
+    # refresh its token (a pre-accept close would surface only as 1006).
+    async def scenario() -> dict[str, Any]:
         ws = WebsocketCommunicator(application, "/ws/comments/", headers=ORIGIN)
-        connected, code = await ws.connect()
-        return connected, code
+        await ws.connect()
+        return await ws.receive_output(timeout=2)
 
-    connected, code = async_to_sync(scenario)()
-    assert not connected and code == 4401
+    message = async_to_sync(scenario)()
+    assert message == {"type": "websocket.close", "code": 4401}
