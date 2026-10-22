@@ -88,9 +88,13 @@ docker compose up -d --build         # первый запуск 3–5 мин
 Демо-данные:
 
 ```bash
-docker compose exec backend python manage.py seed_comments --count 5000
-docker compose exec backend python manage.py search_reindex
+# 12 курированных обсуждений (фото, TXT, GIF, ветка на 7 уровней, UA/RU) + 1 000 000 более старых комментариев:
+docker compose exec backend python manage.py seed_demo --reset --bulk 1000000
+# или только курированные ветки, без массива:
+docker compose exec backend python manage.py seed_demo --reset
 ```
+
+`--reset` удаляет все комментарии, вложения, поисковый индекс и кэш, поэтому используйте его только локально.
 
 ## Развёртывание на сервере
 
