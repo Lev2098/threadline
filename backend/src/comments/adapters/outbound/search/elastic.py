@@ -64,6 +64,11 @@ class ElasticsearchSearchIndex:
         self._client.indices.create(index=self._index, settings=INDEX_SETTINGS, mappings=INDEX_MAPPINGS)
         return True
 
+    def reset(self) -> None:
+        """Drop and recreate the index (demo resets only)."""
+        self._client.indices.delete(index=self._index, ignore_unavailable=True)
+        self.ensure_index()
+
     def index(self, comment: Comment) -> None:
         self._client.index(index=self._index, id=str(comment.id), document=_document(comment))
 
