@@ -5,15 +5,17 @@ import { ApiError, type Captcha } from '@/api/types'
 import { t } from '@/composables/i18n'
 import { announceLocally } from '@/composables/live'
 import { checkMarkup, plainText, safeHtml, type MarkupIssue } from '@/composables/markup'
-import { composer, toast } from '@/composables/ui'
+import { composer, enterModal, isMac, toast } from '@/composables/ui'
 
 type Field = 'username' | 'email' | 'home_page' | 'text' | 'attachment' | 'captcha'
 
 const PROFILE_KEY = 'threadline.profile'
 const USERNAME_RE = /^[A-Za-z0-9]+$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-const URL_RE = /^https?:\/\/[^\s<>"']+\.[^\s<>"']+$/i
+const URL_RE = /^https?:\/\/[^\s<>"'`\\]+$/i
+const CAPTCHA_RE = /^[A-Za-z0-9]+$/
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif']
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
 const form = reactive({ username: '', email: '', home_page: '', text: '', captcha: '' })
 const errors = reactive<Partial<Record<Field | 'non_field', string>>>({})
@@ -27,7 +29,11 @@ const submitting = ref(false)
 const dragging = ref(false)
 const linkUrl = ref('')
 const linkOpen = ref(false)
+const linkError = ref('')
+const linkInput = ref<HTMLInputElement>()
 const textarea = ref<HTMLTextAreaElement>()
+let leaveModal: (() => void) | null = null
+let previewSeq = 0
 const panel = ref<HTMLElement>()
 
 restoreProfile()
@@ -68,13 +74,19 @@ function validate(field: Field): string | undefined {
       return issue ? markupMessage(issue) : undefined
     }
     case 'captcha':
-      return form.captcha.trim() ? undefined : v.errRequired
+      if (!captcha.value) return v.captchaLoadError
+      if (!form.captcha.trim()) return v.errRequired
+      return CAPTCHA_RE.test(form.captcha.trim()) ? undefined : v.errCaptcha
     case 'attachment':
       return errors.attachment
   }
 }
 
 function blur(field: Field): void {
+  // Don't scold a field the user merely tabbed through; empty fields are
+  // reported on submit. Once a field has been typed in, it validates on blur.
+  const value = field in form ? form[field as keyof typeof form] : ''
+  if (!value && !touched[field]) return
   touched[field] = true
   errors[field] = validate(field)
 }
@@ -94,13 +106,17 @@ function schedulePreview(): void {
   previewTimer = window.setTimeout(renderPreview, 300)
 }
 async function renderPreview(): Promise<void> {
+  const seq = ++previewSeq
   if (!form.text.trim() || checkMarkup(form.text)) {
     previewHtml.value = ''
     return
   }
   try {
-    previewHtml.value = (await api.preview(form.text)).html
+    const { html } = await api.preview(form.text)
+    if (seq === previewSeq) previewHtml.value = html
   } catch (e) {
+    if (seq !== previewSeq) return
+    previewHtml.value = '' // never keep rendering an older text
     if (e instanceof ApiError && e.body.errors.text) errors.text = e.body.errors.text
   }
 }
@@ -116,12 +132,26 @@ function wrap(open: string, close: string): void {
     el.setSelectionRange(s + open.length, e + open.length)
   })
 }
+function toggleLink(): void {
+  linkOpen.value = !linkOpen.value
+  linkError.value = ''
+  if (linkOpen.value) nextTick(() => linkInput.value?.focus())
+}
+function closeLink(): void {
+  linkOpen.value = false
+  linkError.value = ''
+  textarea.value?.focus()
+}
 function insertLink(): void {
   const url = linkUrl.value.trim()
-  if (!/^(https?:\/\/|mailto:)/i.test(url)) return
-  wrap(`<a href="${url.replace(/"/g, '%22')}" title="">`, '</a>')
+  if (!/^(https?:\/\/|mailto:)\S+$/i.test(url)) {
+    linkError.value = t.value.errLinkUrl
+    return
+  }
   linkUrl.value = ''
   linkOpen.value = false
+  linkError.value = ''
+  wrap(`<a href="${url.replace(/"/g, '%22')}">`, '</a>')
 }
 
 /* ---------- file ---------- */
@@ -137,6 +167,10 @@ function pickFile(f: File | null | undefined): void {
   }
   if (isText && f.size > 100 * 1024) {
     errors.attachment = t.value.errFileTxt
+    return
+  }
+  if (isImage && f.size > IMAGE_MAX_BYTES) {
+    errors.attachment = t.value.errFileTooBig
     return
   }
   file.value = f
@@ -158,13 +192,16 @@ async function refreshCaptcha(): Promise<void> {
   form.captcha = ''
   try {
     captcha.value = await api.captcha()
+    if (errors.captcha === t.value.captchaLoadError) errors.captcha = undefined
   } catch {
     captcha.value = null
+    errors.captcha = t.value.captchaLoadError
   }
 }
 
 /* ---------- submit ---------- */
 async function submit(): Promise<void> {
+  if (submitting.value) return // Ctrl+Enter twice must not send twice
   const fields: Field[] = ['username', 'email', 'home_page', 'text', 'captcha']
   fields.forEach((f) => {
     touched[f] = true
@@ -196,12 +233,7 @@ async function submit(): Promise<void> {
     clearFile()
     close()
   } catch (e) {
-    if (e instanceof ApiError) {
-      Object.assign(errors, e.body.errors)
-      if (!Object.keys(e.body.errors).length) errors.non_field = e.body.message
-    } else {
-      errors.non_field = t.value.loadError
-    }
+    applyServerError(e)
     await refreshCaptcha() // captchas are single-use on the server
     focusFirstError()
   } finally {
@@ -209,8 +241,51 @@ async function submit(): Promise<void> {
   }
 }
 
+/**
+ * Server messages are English; the UI shows its own UA/RU text per field and
+ * per error code. The server's text is kept only for markup errors, where it
+ * names the offending tag and the client check already speaks the language.
+ */
+function applyServerError(e: unknown): void {
+  const v = t.value
+  if (!(e instanceof ApiError)) {
+    errors.non_field = v.errPublish
+    return
+  }
+  if (e.status === 413) {
+    errors.attachment = v.errFileTooBig
+    return
+  }
+  if (e.status === 429) {
+    errors.non_field = v.errRateLimit
+    return
+  }
+  if (e.status >= 500) {
+    errors.non_field = v.errServer
+    return
+  }
+  const byField: Record<string, string> = {
+    username: v.errUsername,
+    email: v.errEmail,
+    home_page: v.errUrl,
+    captcha: v.errCaptcha,
+    attachment: v.errAttachment,
+    parent_id: v.errParent,
+  }
+  for (const [field, message] of Object.entries(e.body.errors)) {
+    if (field === 'text') errors.text = message
+    else if (field in byField) errors[field as Field] = byField[field]
+    else errors.non_field = message
+  }
+  if (!Object.keys(e.body.errors).length) errors.non_field = v.errPublish
+}
+
 function focusFirstError(): void {
-  nextTick(() => panel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
+  nextTick(() => {
+    const target =
+      panel.value?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? panel.value?.querySelector<HTMLElement>('.alert')
+    target?.focus()
+  })
 }
 
 /* ---------- open / close ---------- */
@@ -218,8 +293,28 @@ function close(): void {
   composer.open = false
 }
 function onKey(event: KeyboardEvent): void {
-  if (event.key === 'Escape') close()
+  if (event.key === 'Escape') {
+    if (linkOpen.value) closeLink() // Esc closes the innermost layer only
+    else close()
+  }
   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
+  if (event.key === 'Tab') trapFocus(event)
+}
+/** Keep Tab inside the drawer (the page behind is also inert). */
+function trapFocus(event: KeyboardEvent): void {
+  const items = panel.value?.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]):not(.sr-only), textarea, a[href], label.drop-pick',
+  )
+  if (!items?.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 watch(
   () => composer.open,
@@ -228,15 +323,23 @@ watch(
       Object.keys(errors).forEach((k) => delete errors[k as Field])
       Object.keys(touched).forEach((k) => delete touched[k as Field])
       tab.value = 'write'
+      linkOpen.value = false
+      linkError.value = ''
       refreshCaptcha()
+      leaveModal = enterModal()
       document.addEventListener('keydown', onKey)
       nextTick(() => panel.value?.querySelector<HTMLElement>(form.username ? 'textarea' : 'input')?.focus())
     } else {
       document.removeEventListener('keydown', onKey)
+      leaveModal?.()
+      leaveModal = null
     }
   },
 )
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKey)
+  leaveModal?.()
+})
 
 function restoreProfile(): void {
   try {
@@ -325,20 +428,23 @@ function saveProfile(): void {
               </div>
 
               <div v-show="tab === 'write'">
-                <div class="toolbar" role="toolbar" aria-label="HTML">
+                <div class="toolbar" role="toolbar" :aria-label="t.formatting">
                   <button type="button" title="<i>" @click="wrap('<i>', '</i>')"><i>i</i></button>
                   <button type="button" title="<strong>" @click="wrap('<strong>', '</strong>')"><strong>strong</strong></button>
                   <button type="button" title="<code>" @click="wrap('<code>', '</code>')"><code>code</code></button>
-                  <button type="button" title="<a>" :aria-expanded="linkOpen" @click="linkOpen = !linkOpen">a</button>
+                  <button type="button" title="<a>" :aria-expanded="linkOpen" @click="toggleLink">a</button>
                   <div v-if="linkOpen" class="link-pop">
                     <input
+                      ref="linkInput"
                       v-model="linkUrl"
                       type="url"
                       :placeholder="t.linkPrompt"
                       :aria-label="t.linkPrompt"
+                      :aria-invalid="!!linkError"
                       @keydown.enter.prevent="insertLink"
                     />
-                    <button type="button" class="btn btn-primary" @click="insertLink">OK</button>
+                    <button type="button" class="btn btn-primary" @click="insertLink">{{ t.insertLink }}</button>
+                    <span v-if="linkError" class="hint link-error" role="alert">{{ linkError }}</span>
                   </div>
                 </div>
                 <textarea
@@ -392,7 +498,7 @@ function saveProfile(): void {
             <div class="field captcha" :class="{ bad: errors.captcha }">
               <span class="label" id="captcha-label">{{ t.captcha }}</span>
               <div class="captcha-row">
-                <img v-if="captcha" :src="captcha.image" alt="CAPTCHA" width="200" height="64" />
+                <img v-if="captcha" :src="captcha.image" :alt="t.captchaAlt" width="200" height="64" />
                 <span v-else class="captcha-skeleton" />
                 <button type="button" class="icon-btn" :aria-label="t.captchaRefresh" :title="t.captchaRefresh" @click="refreshCaptcha">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
@@ -411,13 +517,13 @@ function saveProfile(): void {
               <span v-if="errors.captcha" class="hint">{{ errors.captcha }}</span>
             </div>
 
-            <p v-if="errors.non_field" class="alert" role="alert">{{ errors.non_field }}</p>
+            <p v-if="errors.non_field" class="alert" role="alert" tabindex="-1">{{ errors.non_field }}</p>
 
             <footer class="actions">
               <button type="button" class="btn btn-ghost" @click="close">{{ t.cancel }}</button>
               <button type="submit" class="btn btn-primary" :disabled="submitting">
                 {{ submitting ? t.submitting : t.submit }}
-                <kbd aria-hidden="true">⌘↵</kbd>
+                <kbd aria-hidden="true">{{ isMac ? '⌘↵' : 'Ctrl+↵' }}</kbd>
               </button>
             </footer>
           </form>
@@ -603,8 +709,16 @@ textarea {
 }
 .link-pop {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   flex: 1 1 260px;
+}
+.link-pop input {
+  flex: 1 1 180px;
+}
+.link-error {
+  width: 100%;
+  color: var(--rose);
 }
 .link-pop input {
   padding: 0.35rem 0.6rem;

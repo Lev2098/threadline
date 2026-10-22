@@ -72,3 +72,29 @@ export function initials(name: string): string {
 }
 
 export const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/* ---------- viewport ---------- */
+const compactQuery = matchMedia('(max-width: 640px)')
+/** Phones: thread indentation stops early so deep replies stay readable. */
+export const compact = ref(compactQuery.matches)
+compactQuery.addEventListener('change', (e) => (compact.value = e.matches))
+
+/* ---------- modal dialogs ---------- */
+/**
+ * Makes the page behind a dialog inert (no Tab, no screen reader, no scroll)
+ * and returns a function that undoes it and puts focus back where it was.
+ */
+export function enterModal(): () => void {
+  const opener = document.activeElement as HTMLElement | null
+  const app = document.getElementById('app')
+  app?.setAttribute('inert', '')
+  const overflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  return () => {
+    app?.removeAttribute('inert')
+    document.body.style.overflow = overflow
+    if (opener?.isConnected) opener.focus()
+  }
+}
+
+export const isMac = /Mac|iPhone|iPad/.test(navigator.platform)

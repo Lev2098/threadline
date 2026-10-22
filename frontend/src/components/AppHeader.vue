@@ -183,7 +183,7 @@ function submit(): void {
 }
 .lang button[aria-pressed='true'] {
   background: var(--signal);
-  color: #fff;
+  color: var(--on-signal);
 }
 @media (max-width: 760px) {
   .header {
@@ -199,7 +199,8 @@ function submit(): void {
     justify-self: end;
   }
   .live {
-    display: none;
+    font-size: 0;
+    gap: 0;
   }
 }
 </style>
