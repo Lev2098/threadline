@@ -32,6 +32,11 @@ function storeToken(value: string | null): void {
   }
 }
 
+/** Forget the current token (expired or rejected); the next call fetches a new one. */
+export function resetToken(): void {
+  storeToken(null)
+}
+
 /** Anonymous JWT identifying this browser; fetched once and reused. */
 export async function ensureToken(): Promise<string> {
   if (token) return token

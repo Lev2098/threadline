@@ -12,7 +12,7 @@ function open(): void {
 }
 
 function kb(size: number): string {
-  return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${Math.max(1, Math.round(size / 1024))} ${t.value.kb}`
 }
 </script>
 

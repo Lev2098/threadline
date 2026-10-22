@@ -164,6 +164,21 @@ th i.active.desc {
   width: 10.5rem;
   text-align: right;
 }
+/* Tablet: the excerpt column gives way first; e-mail stays (it is sortable). */
+@media (max-width: 1024px) and (min-width: 761px) {
+  .c-text {
+    display: none;
+  }
+  .c-author {
+    width: 30%;
+  }
+  .c-date {
+    width: 8.5rem;
+  }
+  .c-replies {
+    width: 9rem;
+  }
+}
 td {
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--line);
@@ -276,12 +291,17 @@ time {
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
   }
   thead th {
     border: 0;
     flex: none;
     width: auto;
+    white-space: nowrap;
+    background: transparent;
   }
+
   thead th.c-text,
   thead th.c-replies {
     display: none;
@@ -319,7 +339,7 @@ time {
     text-align: left;
   }
   .thread-row td {
-    padding: 0.5rem 0.75rem 1rem;
+    padding: 0.5rem 0.4rem 1rem;
   }
 }
 </style>
