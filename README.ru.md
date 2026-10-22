@@ -2,6 +2,8 @@
 
 [Українська](README.md) · **Русский**
 
+Репозиторий: https://github.com/Lev2098/threadline
+
 Одностраничное приложение, где пользователи оставляют комментарии и отвечают на них на любой глубине. Новые сообщения появляются во всех открытых вкладках вживую, без перезагрузки.
 
 Бэкенд: Django в **гексагональной архитектуре** (ports & adapters). Фронтенд: Vue 3. Всё окружение поднимается одной командой `docker compose up`.
@@ -72,7 +74,7 @@
 Нужен только Docker (Docker Desktop или Docker Engine с плагином compose).
 
 ```bash
-git clone <repo-url> threadline && cd threadline
+git clone https://github.com/Lev2098/threadline.git threadline && cd threadline
 cp .env.example .env                 # для локального запуска достаточно заменить пароли
 docker compose up -d --build         # первый запуск 3–5 мин
 ```
