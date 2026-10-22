@@ -64,8 +64,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+# HTTP is served by gunicorn (WSGI, threads); only WebSockets go through ASGI.
+WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
-WSGI_APPLICATION = None
 
 TEMPLATES = [
     {
@@ -94,10 +95,18 @@ if env("POSTGRES_HOST"):
             "NAME": env("POSTGRES_DB", "comments"),
             "USER": env("POSTGRES_USER", "comments"),
             "PASSWORD": env("POSTGRES_PASSWORD"),
-            # Persistent connections; with ASGI each thread keeps its own.
-            "CONN_MAX_AGE": int(env("POSTGRES_CONN_MAX_AGE", "60")),
-            "CONN_HEALTH_CHECKS": True,
-            "OPTIONS": {"connect_timeout": 5},
+            # Under ASGI every sync_to_async thread would keep its own persistent
+            # connection (CONN_MAX_AGE), exhausting max_connections under load.
+            # A bounded psycopg pool per process caps it: processes x POOL_MAX.
+            "CONN_MAX_AGE": 0,
+            "OPTIONS": {
+                "connect_timeout": 5,
+                "pool": {
+                    "min_size": int(env("POSTGRES_POOL_MIN", "2")),
+                    "max_size": int(env("POSTGRES_POOL_MAX", "10")),
+                    "timeout": 10,
+                },
+            },
         }
 
     DATABASES = {"default": _pg(env("POSTGRES_HOST"))}
@@ -177,6 +186,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
         "rest_framework.parsers.MultiPartParser",
+        "rest_framework.parsers.FormParser",
     ],
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {

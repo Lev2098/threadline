@@ -101,6 +101,13 @@ services:
       redis: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
 
+  realtime:
+    <<: *backend
+    command: ["realtime"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
   worker:
     <<: *backend
     command: ["worker"]
@@ -125,6 +132,26 @@ services:
     depends_on:
       backend: { condition: service_healthy }
     restart: unless-stopped
+
+  # Test runner on real PostgreSQL + Redis: `docker compose --profile test run --rm tests`
+  tests:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
+    image: threadline-backend-dev:latest
+    environment:
+      DJANGO_SECRET_KEY: test-only-secret-key-at-least-32-bytes-long
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-comments}
+      POSTGRES_USER: ${POSTGRES_USER:-comments}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/15
+    command: ["test"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
 
 volumes:
   pgdata:
