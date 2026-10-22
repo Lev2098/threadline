@@ -130,13 +130,13 @@ docker-compose.loadtest.yml  # оверлей для навантажуваль�
 docker compose --profile test run --rm tests
 
 # Або локально (SQLite + in-memory адаптери, без жодних сервісів):
-cd backend && pip install -e '.[dev]' && pytest
+cd backend && pip install -e '.[dev]' && pytest           # Python ≥ 3.12
 
 ruff check src tests && mypy src && lint-imports          # стиль, типи (strict), межі гексагона
-cd frontend && npm run typecheck
+cd ../frontend && npm ci && npm run typecheck
 ```
 
-- **77 тестів.** Юніт-тести домену та use cases з in-memory фейками, без Django і БД. Інтеграційні тести REST, GraphQL і WebSocket.
+- **123 тести.** Юніт-тести домену та use cases з in-memory фейками, без Django і БД. Інтеграційні тести REST, GraphQL і WebSocket. Окремий набір регресійних тестів на кожен баг, знайдений під час QA.
 - **`import-linter` перевіряє межі гексагона.** Домен і застосунок не можуть імпортувати Django, Redis, Celery тощо. Шари не можуть імпортувати «вгору».
 - **mypy у strict-режимі.**
 
@@ -148,5 +148,6 @@ cd frontend && npm run typecheck
 | Розгортання крок за кроком | [docs/uk/deployment.md](docs/uk/deployment.md) | [docs/ru/deployment.md](docs/ru/deployment.md) |
 | Масштабування та навантажувальний тест | [docs/uk/scaling.md](docs/uk/scaling.md) | [docs/ru/scaling.md](docs/ru/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/uk/api.md](docs/uk/api.md) | [docs/ru/api.md](docs/ru/api.md) |
+| QA: як перевірявся продукт | [docs/uk/qa.md](docs/uk/qa.md) | [docs/ru/qa.md](docs/ru/qa.md) |
 | Сценарій демо-відео | [docs/uk/video.md](docs/uk/video.md) | [docs/ru/video.md](docs/ru/video.md) |
 | Схема БД | [docs/db/schema.mysql.sql](docs/db/schema.mysql.sql) (Workbench) · [docs/db/schema.postgresql.sql](docs/db/schema.postgresql.sql) (фактична) | |
