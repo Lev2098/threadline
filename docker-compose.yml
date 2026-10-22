@@ -15,6 +15,8 @@ x-backend: &backend
     CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-comments}:${RABBITMQ_PASSWORD:-comments}@rabbitmq:5672//
     ELASTICSEARCH_URL: http://elasticsearch:9200
     TRUST_PROXY_HEADERS: "true"
+    # Built SPA shell for server-rendered pages (SEO), served by the edge.
+    SPA_SHELL_URL: http://frontend/index.html
   volumes:
     - media:/app/media
   # Longer than gunicorn/uvicorn/celery graceful timeouts (20 s), so in-flight

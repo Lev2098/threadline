@@ -39,6 +39,8 @@
 - **Полнотекстовый поиск** на Elasticsearch.
 - **Интерфейс UA/RU**, светлая и тёмная тема, адаптивная вёрстка до 360 px, доступность с клавиатуры, поддержка `prefers-reduced-motion`.
 - **API:** REST с OpenAPI/Swagger (`/api/docs`), GraphQL (`/graphql`), WebSocket (`/ws/comments/`).
+- **SEO.** Каждая ветка имеет собственный адрес `/t/<id>` и отдаётся сервером как готовый HTML: meta, Open Graph, JSON-LD `DiscussionForumPosting`, hreflang uk/ru. Есть `robots.txt`, `sitemap.xml` на сотни тысяч веток и настоящие 404. Подробности — [docs/ru/seo.md](docs/ru/seo.md).
+- **Анимации и мелкие радости** (все отключаются при `prefers-reduced-motion`): заголовок появляется по словам, счётчик «докручивается», ветки «прорастают», тема меняется кругом от кнопки, при публикации разлетается конфетти, по таблице идёт spotlight за курсором. Горячие клавиши: `/` поиск, `n` новое обсуждение, `t` тема, `?` справка.
 
 ## Как выполнены требования ТЗ
 
@@ -148,6 +150,7 @@ cd ../frontend && npm ci && npm run typecheck
 | Развёртывание шаг за шагом | [docs/ru/deployment.md](docs/ru/deployment.md) | [docs/uk/deployment.md](docs/uk/deployment.md) |
 | Масштабирование и нагрузочный тест | [docs/ru/scaling.md](docs/ru/scaling.md) | [docs/uk/scaling.md](docs/uk/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/ru/api.md](docs/ru/api.md) | [docs/uk/api.md](docs/uk/api.md) |
+| SEO и индексация | [docs/ru/seo.md](docs/ru/seo.md) | [docs/uk/seo.md](docs/uk/seo.md) |
 | QA: как проверялся продукт | [docs/ru/qa.md](docs/ru/qa.md) | [docs/uk/qa.md](docs/uk/qa.md) |
 | Сценарий демо-видео | [docs/ru/video.md](docs/ru/video.md) | [docs/uk/video.md](docs/uk/video.md) |
 | Схема БД | [docs/db/schema.mysql.sql](docs/db/schema.mysql.sql) (Workbench) · [docs/db/schema.postgresql.sql](docs/db/schema.postgresql.sql) (фактическая) | |

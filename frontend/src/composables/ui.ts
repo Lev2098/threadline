@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import type { Attachment, Comment } from '@/api/types'
+import { revealFrom } from './fx'
 
 /* ---------- theme ---------- */
 export type Theme = 'light' | 'dark'
@@ -17,14 +18,20 @@ function initialTheme(): Theme {
 export const theme = ref<Theme>(initialTheme())
 document.documentElement.dataset.theme = theme.value
 
-export function toggleTheme(): void {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  document.documentElement.dataset.theme = theme.value
-  try {
-    localStorage.setItem('threadline.theme', theme.value)
-  } catch {
-    /* ignore */
+export function toggleTheme(origin?: { x: number; y: number }): void {
+  const apply = () => {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    document.documentElement.dataset.theme = theme.value
   }
+  const { x, y } = origin ?? { x: innerWidth - 40, y: 32 }
+  revealFrom(x, y, () => {
+    apply()
+    try {
+      localStorage.setItem('threadline.theme', theme.value)
+    } catch {
+      /* ignore */
+    }
+  })
 }
 
 /* ---------- composer ---------- */

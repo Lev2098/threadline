@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "strawberry.django",
     "comments.adapters.outbound.persistence.apps.PersistenceConfig",
     "comments.adapters.inbound.cli.apps.CliConfig",
+    "comments.adapters.inbound.web.apps.WebConfig",
 ]
 
 MIDDLEWARE = [
@@ -216,6 +217,12 @@ LOADTEST_MODE = env_bool("LOADTEST_MODE")
 LOADTEST_CAPTCHA_ANSWER = env("LOADTEST_CAPTCHA_ANSWER", "loadtest") if LOADTEST_MODE else ""
 if LOADTEST_MODE:
     REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []
+
+# --- SEO / server rendering ---------------------------------------------------------------
+# Public origin used in canonical URLs, sitemaps and Open Graph tags.
+SITE_URL = env("SITE_URL", "http://localhost:8080")
+# Built SPA index.html (from the edge) used as the shell of server-rendered pages.
+SPA_SHELL_URL = env("SPA_SHELL_URL")
 
 # --- Files ----------------------------------------------------------------------------
 

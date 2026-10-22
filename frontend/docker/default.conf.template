@@ -95,6 +95,8 @@ server {
 
     location /api/ {
         limit_req zone=api_read burst=60 nodelay;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options nosniff always;
         error_page 429 = @json_429;
         error_page 502 503 504 = @json_5xx;
         proxy_pass http://backend;
@@ -102,6 +104,7 @@ server {
 
     location /graphql {
         limit_req zone=api_read burst=30 nodelay;
+        add_header X-Robots-Tag "noindex, nofollow" always;
         error_page 429 = @json_429;
         error_page 502 503 504 = @json_5xx;
         proxy_pass http://backend;
@@ -144,6 +147,37 @@ server {
         default_type application/octet-stream;
     }
 
+    # Server-rendered pages (SEO + first paint). If Django is down the static
+    # SPA shell is served instead, so the site never goes blank.
+    location = / {
+        limit_req zone=api_read burst=60 nodelay;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        error_page 502 503 504 = @spa;
+        proxy_pass http://backend;
+    }
+    location ~ ^/t/[0-9]+/?$ {
+        limit_req zone=api_read burst=60 nodelay;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        error_page 502 503 504 = @spa;
+        proxy_pass http://backend;
+    }
+    location @spa {
+        root /usr/share/nginx/html;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files /index.html =503;
+    }
+    location ~ ^/(robots\.txt|sitemap\.xml|sitemaps/) {
+        limit_req zone=api_read burst=30 nodelay;
+        proxy_pass http://backend;
+    }
+    # The built shell, fetched by Django to wrap server-rendered pages.
+    location = /index.html {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
+    }
+
     location /assets/ {
         root /usr/share/nginx/html;
         expires 1y;
@@ -155,9 +189,6 @@ server {
         root /usr/share/nginx/html;
         try_files $uri /index.html;
         add_header Cache-Control "no-cache" always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy same-origin always;
-        add_header X-Frame-Options DENY always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+        include /etc/nginx/conf.d/includes/page-headers.conf;
     }
 }
