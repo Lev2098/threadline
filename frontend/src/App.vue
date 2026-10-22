@@ -230,7 +230,7 @@ onMounted(() => {
       <div class="hero-copy">
         <h1 id="hero-title" :aria-label="t.heroTitle">
           <span v-for="(word, i) in heroWords" :key="`${word}-${i}`" class="word" :style="{ '--i': i }" aria-hidden="true"
-            >{{ word }}&#32;</span
+            >{{ word }}</span
           >
         </h1>
         <p>{{ t.heroLead }}</p>
@@ -239,7 +239,10 @@ onMounted(() => {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
             {{ t.startDiscussion }}
           </button>
-          <span v-if="state.data" class="stat"><b>{{ formatCount(threadsShown) }}</b> {{ t.statThreads }}</span>
+          <span v-if="state.data" class="stat"><b class="count-up"
+            ><span aria-hidden="true">{{ formatCount(threadsShown) }}</span
+            ><span class="reserve">{{ formatCount(state.data.total) }}</span></b
+          > {{ t.statThreads }}</span>
         </div>
       </div>
     </section>
@@ -357,14 +360,17 @@ onMounted(() => {
 }
 .word {
   display: inline-block;
+  /* trailing spaces collapse inside inline-blocks, so words are spaced by margin */
+  margin-right: 0.26em;
   animation: word-in 0.7s var(--ease-out) both;
   animation-delay: calc(0.15s + var(--i) * 0.09s);
 }
+/* No opacity fade: the heading is the page's LCP element, and an invisible
+   element isn't "painted" until the fade ends. Blur-to-sharp reads the same. */
 @keyframes word-in {
   from {
-    opacity: 0;
-    transform: translateY(0.45em) rotate(2deg);
-    filter: blur(6px);
+    transform: translateY(0.35em) rotate(2deg);
+    filter: blur(8px);
   }
 }
 .to-top {
@@ -390,6 +396,9 @@ onMounted(() => {
 .fade-up-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+.word:last-child {
+  margin-right: 0;
 }
 .hero h1 {
   margin: 0 0 1rem;
@@ -426,6 +435,17 @@ onMounted(() => {
 }
 .stat {
   color: var(--muted);
+}
+/* the animated number sits on top of the final one, which reserves the width */
+.count-up {
+  display: inline-grid;
+}
+.count-up > span {
+  grid-area: 1 / 1;
+  text-align: right;
+}
+.count-up .reserve {
+  color: transparent; /* reserves width and is what screen readers read */
 }
 .stat b {
   font-family: var(--font-display);

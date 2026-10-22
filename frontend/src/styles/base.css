@@ -16,6 +16,8 @@
   --rose-soft: #fde6ee;
   --code-bg: #efedff;
   --on-signal: #ffffff;
+  /* violet for small text on light/soft backgrounds (>= 4.5:1) */
+  --signal-ink: #4f2bd6;
 
   --font-display: 'Unbounded', 'Golos Text', system-ui, sans-serif;
   --font-body: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -56,6 +58,7 @@
     --rose-soft: #4a1830;
     --code-bg: #2a2660;
   --on-signal: #14102e;
+  --signal-ink: #b9a9ff;
     --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
     color-scheme: dark;
   }
@@ -77,6 +80,7 @@
   --rose-soft: #4a1830;
   --code-bg: #2a2660;
   --on-signal: #14102e;
+  --signal-ink: #b9a9ff;
   --shadow-lift: 0 1px 0 rgb(0 0 0 / 30%), 0 16px 40px -16px rgb(0 0 0 / 70%);
   color-scheme: dark;
 }
@@ -115,7 +119,7 @@ button {
 }
 
 a {
-  color: var(--signal);
+  color: var(--signal-ink);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
@@ -255,7 +259,10 @@ a {
   }
 }
 
-/* server-rendered markup, visible to crawlers and until the app boots */
+/* server-rendered markup: for crawlers, link previews and clients without JS */
+.js .ssr {
+  display: none;
+}
 .ssr {
   max-width: 920px;
   margin: 0 auto;

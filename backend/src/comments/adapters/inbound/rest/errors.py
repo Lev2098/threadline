@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db import DatabaseError, InterfaceError, OperationalError
 from django.http import HttpRequest, JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
@@ -22,6 +23,14 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response | Non
         return _response(exc.code, exc.message, errors, status.HTTP_404_NOT_FOUND)
     if isinstance(exc, ServiceUnavailable):
         return _response(exc.code, exc.message, {}, status.HTTP_503_SERVICE_UNAVAILABLE)
+    if isinstance(exc, (OperationalError, InterfaceError)) or type(exc) is DatabaseError:
+        # Database unreachable (restart, failover): a retryable 503, not a 500.
+        return _response(
+            "unavailable",
+            "The service is temporarily unavailable. Please try again.",
+            {},
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
     if isinstance(exc, DomainError):
         return _response(exc.code, exc.message, {exc.field or "non_field": exc.message}, status.HTTP_400_BAD_REQUEST)
 
