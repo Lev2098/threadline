@@ -177,6 +177,19 @@ class ListRootComments:
         return Page(items=items, page=page, page_size=query.page_size, total=total)
 
 
+class GetComment:
+    """Single comment by id, e.g. to resolve a permalink to its thread."""
+
+    def __init__(self, repository: CommentRepository) -> None:
+        self._repository = repository
+
+    def __call__(self, comment_id: int) -> Comment:
+        comment = self._repository.get(comment_id)
+        if comment is None:
+            raise NotFoundError("Comment not found.")
+        return comment
+
+
 class GetThread:
     def __init__(self, repository: CommentRepository) -> None:
         self._repository = repository

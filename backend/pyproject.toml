@@ -60,8 +60,10 @@ select = ["E", "F", "I", "B", "UP", "SIM", "S", "DJ", "RUF"]
 ignore = ["S101", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "S314"]
 "src/comments/adapters/outbound/persistence/migrations/**" = ["E501", "RUF"]
+# User-facing Ukrainian/Russian copy: Cyrillic letters are intended, not confusables.
+"src/comments/adapters/inbound/web/seo.py" = ["RUF001"]
 
 [tool.mypy]
 python_version = "3.12"
