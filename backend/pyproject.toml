@@ -64,6 +64,8 @@ ignore = ["S101", "RUF012"]
 "src/comments/adapters/outbound/persistence/migrations/**" = ["E501", "RUF"]
 # User-facing Ukrainian/Russian copy: Cyrillic letters are intended, not confusables.
 "src/comments/adapters/inbound/web/seo.py" = ["RUF001"]
+"src/comments/adapters/inbound/cli/demo_text.py" = ["RUF001"]
+"src/comments/adapters/inbound/cli/management/commands/seed_demo.py" = ["RUF001", "E501"]
 
 [tool.mypy]
 python_version = "3.12"

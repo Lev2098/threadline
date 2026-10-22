@@ -124,6 +124,9 @@ else:
     }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# INCLUDE columns of covering indexes are PostgreSQL-only; the SQLite dev
+# fallback just ignores them, which is fine.
+SILENCED_SYSTEM_CHECKS = ["models.W040"]
 
 # --- Cache / Redis / Channels ---------------------------------------------------
 
