@@ -139,7 +139,7 @@ schema = strawberry.Schema(
     mutation=Mutation,
     extensions=[
         lambda: QueryDepthLimiter(max_depth=6),
-        lambda: MaxAliasesLimiter(max_alias_count=5),
+        lambda: MaxAliasesLimiter(max_alias_count=3),
         lambda: MaxTokensLimiter(max_token_count=1000),
     ],
 )
