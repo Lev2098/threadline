@@ -6,7 +6,7 @@
 
 | # | Что показать | Что сказать |
 |---|---|---|
-| 1 | Терминал: `docker compose ps`, все сервисы healthy | «Весь стек в Docker: PostgreSQL, Redis, RabbitMQ, Elasticsearch, Django ASGI, Celery, nginx» |
+| 1 | Терминал: `docker compose ps`, все сервисы healthy | «Весь стек в Docker: PostgreSQL, Redis, RabbitMQ, Elasticsearch, Django (gunicorn для HTTP, uvicorn для WebSocket), Celery, nginx» |
 | 2 | Главная страница, таблица | «Заглавные комментарии в таблице, 25 на страницу, по умолчанию новые сверху» |
 | 3 | Клик по «Автор», «E-mail», «Дата» дважды | Сортировка в обе стороны; URL меняется, кнопка «назад» работает |
 | 4 | Пагинация: страница 2, последняя | «Здесь миллион записей, глубокие страницы тоже быстрые» |
