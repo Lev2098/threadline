@@ -16,12 +16,18 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      default:
+        ipv4_address: ${CADDY_IP:-172.28.0.250}
     depends_on:
       frontend: { condition: service_healthy }
     restart: unless-stopped
 
   frontend:
     ports: !reset []
+    environment:
+      # Only Caddy may tell nginx the real client IP (X-Forwarded-For).
+      TRUSTED_PROXIES: ${CADDY_IP:-172.28.0.250}/32
 
   rabbitmq:
     ports: !reset []
