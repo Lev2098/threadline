@@ -3,12 +3,15 @@ root_packages =
     comments
 include_external_packages = True
 
+# Driving adapters call the composition root, which wires driven adapters
+# into use cases. Nothing may import "upwards".
 [importlinter:contract:layers]
-name = Hexagon layers: adapters -> application -> domain
+name = Hexagon layers: inbound -> bootstrap -> outbound -> application -> domain
 type = layers
 layers =
+    comments.adapters.inbound
     comments.bootstrap
-    comments.adapters
+    comments.adapters.outbound
     comments.application
     comments.domain
 
@@ -26,4 +29,6 @@ forbidden_modules =
     redis
     elasticsearch
     PIL
+    nh3
     strawberry
+    jwt
