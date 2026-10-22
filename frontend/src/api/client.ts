@@ -77,6 +77,8 @@ export const api = {
   listComments: (page: number, ordering: Ordering) =>
     request<CommentPage>(`/comments?page=${page}&ordering=${encodeURIComponent(ordering)}`),
 
+  comment: (id: number) => request<Comment>(`/comments/${id}`),
+
   thread: (rootId: number, cursor?: string | null) =>
     request<ThreadSlice>(`/comments/${rootId}/thread${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
 
