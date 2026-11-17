@@ -7,8 +7,11 @@ case "${1:-web}" in
     # HTTP API: sync Django under WSGI with a thread pool per process. Running
     # sync views under ASGI costs a thread hop per request and per sync
     # middleware; the load test measured that overhead (docs/*/scaling.md).
+    # BIND_HOST: "0.0.0.0" by default; "[::]" for an IPv6 private network (e.g.
+    # a legacy Railway environment). gunicorn's "[::]" is dual-stack, uvicorn's
+    # (realtime below) is IPv6-only, so set it there only if peers use IPv6.
     exec gunicorn config.wsgi:application \
-      --bind 0.0.0.0:8000 \
+      --bind "${BIND_HOST:-0.0.0.0}:8000" \
       --worker-class gthread \
       --workers "${WEB_CONCURRENCY:-2}" \
       --threads "${WEB_THREADS:-8}" \
@@ -20,7 +23,7 @@ case "${1:-web}" in
   realtime)
     # WebSockets only: ASGI (Channels) on uvicorn.
     exec uvicorn config.asgi:application \
-      --host 0.0.0.0 --port 8000 \
+      --host "$(echo "${BIND_HOST:-0.0.0.0}" | tr -d '[]')" --port 8000 \
       --workers "${REALTIME_CONCURRENCY:-1}" \
       --proxy-headers --forwarded-allow-ips="*" \
       --timeout-graceful-shutdown 20 \
@@ -32,7 +35,8 @@ case "${1:-web}" in
   migrate)
     python manage.py migrate --noinput
     python manage.py collectstatic --noinput --verbosity 0
-    python manage.py search_reindex --ensure-only
+    # A fresh (e.g. ephemeral) search index is refilled from the database.
+    python manage.py search_reindex --fill-if-created
     ;;
   test)
     shift

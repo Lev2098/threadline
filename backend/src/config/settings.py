@@ -239,6 +239,8 @@ STATIC_URL = "/static/"
 STATIC_ROOT = env("STATIC_ROOT", str(BASE_DIR / "staticfiles"))
 MEDIA_URL = env("MEDIA_URL", "/media/")
 MEDIA_ROOT = env("MEDIA_ROOT", str(BASE_DIR / "media"))
+# Let Django serve MEDIA_ROOT when the edge can't mount the same volume (see urls.py).
+SERVE_MEDIA = env_bool("SERVE_MEDIA")
 DATA_UPLOAD_MAX_MEMORY_SIZE = 11 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 11 * 1024 * 1024
 
