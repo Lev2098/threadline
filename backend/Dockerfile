@@ -22,8 +22,11 @@ RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --no-create-home --s
 WORKDIR /app
 COPY --from=build /opt/venv /opt/venv
 COPY --chown=app:app . .
-RUN mkdir -p /app/media /app/staticfiles && chown -R app:app /app/media /app/staticfiles \
-    && chmod +x docker/entrypoint.sh
+# sed: a checkout on Windows (core.autocrlf) gives the script CRLF endings,
+# and "#!/bin/sh\r" can't be executed.
+RUN mkdir -p /app/media /app/staticfiles && sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh \
+    && DJANGO_SECRET_KEY=build-only-collectstatic python manage.py collectstatic --noinput --verbosity 0 \
+    && chown -R app:app /app/media /app/staticfiles
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

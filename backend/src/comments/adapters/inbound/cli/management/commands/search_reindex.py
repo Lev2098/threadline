@@ -13,6 +13,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--ensure-only", action="store_true", help="Only create the index, don't fill it.")
+        parser.add_argument(
+            "--fill-if-created",
+            action="store_true",
+            help="Create the index if missing and fill it only when it was just created.",
+        )
 
     def handle(self, *args: Any, **opts: Any) -> None:
         index = container().search_index
@@ -21,7 +26,7 @@ class Command(BaseCommand):
             return
         created = index.ensure_index()
         self.stdout.write(f"Index {'created' if created else 'already exists'}.")
-        if opts["ensure_only"]:
+        if opts["ensure_only"] or (opts["fill_if_created"] and not created):
             return
         count = index.bulk_index(container().db_repository.iterate_all())
         self.stdout.write(self.style.SUCCESS(f"Indexed {count:,} comments."))

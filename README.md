@@ -2,6 +2,8 @@
 
 **Українська** · [Русский](README.ru.md)
 
+**Жива версія: https://threadline-production-788a4574.up.railway.app** (Railway, [як розгорнуто](docs/uk/railway.md))
+
 Репозиторій: https://github.com/Lev2098/threadline
 
 Односторінковий застосунок, де користувачі залишають коментарі та відповідають на них на будь-якій глибині. Нові повідомлення з'являються в усіх відкритих вкладках наживо, без перезавантаження.
@@ -154,6 +156,7 @@ cd ../frontend && npm ci && npm run typecheck
 |---|---|---|
 | Архітектура та рішення (ADR) | [docs/uk/architecture.md](docs/uk/architecture.md) | [docs/ru/architecture.md](docs/ru/architecture.md) |
 | Розгортання крок за кроком | [docs/uk/deployment.md](docs/uk/deployment.md) | [docs/ru/deployment.md](docs/ru/deployment.md) |
+| Розгортання на Railway | [docs/uk/railway.md](docs/uk/railway.md) | [docs/ru/railway.md](docs/ru/railway.md) |
 | Масштабування та навантажувальний тест | [docs/uk/scaling.md](docs/uk/scaling.md) | [docs/ru/scaling.md](docs/ru/scaling.md) |
 | API: REST, GraphQL, WebSocket | [docs/uk/api.md](docs/uk/api.md) | [docs/ru/api.md](docs/ru/api.md) |
 | SEO та індексація | [docs/uk/seo.md](docs/uk/seo.md) | [docs/ru/seo.md](docs/ru/seo.md) |

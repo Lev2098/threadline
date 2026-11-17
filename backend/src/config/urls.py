@@ -25,7 +25,11 @@ urlpatterns = [
     path("", include("comments.adapters.inbound.web.urls")),
 ]
 
-if settings.DEBUG:
-    from django.conf.urls.static import static
+if settings.DEBUG or settings.SERVE_MEDIA:
+    # Normally the edge (nginx) serves media straight from the shared volume.
+    # SERVE_MEDIA is for platforms without shared volumes (Railway): nginx falls
+    # back here and adds the hardening headers itself (frontend/docker).
+    from django.urls import re_path
+    from django.views.static import serve
 
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns.insert(0, re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}))
